@@ -4,22 +4,37 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================
+   AEGIS — Holographic Command Center Design System
+   ============================================================ */
+
 @theme inline {
-  --font-heading: var(--font-mono);
-  --font-sans: 'Geist', 'Geist Fallback', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Geist Mono', 'Geist Mono Fallback', monospace;
-  
-  /* Jarvis Colors */
-  --color-jarvis-cyan: #00d4ff;
-  --color-jarvis-blue: #0a84ff;
-  --color-jarvis-amber: #ff9500;
-  --color-jarvis-red: #ff3b30;
-  --color-jarvis-green: #30d158;
-  --color-jarvis-bg: #0a0a0f;
-  --color-jarvis-panel: rgba(0, 20, 40, 0.85);
-  --color-jarvis-border: rgba(0, 212, 255, 0.3);
-  --color-jarvis-glow: rgba(0, 212, 255, 0.5);
-  
+  /* Typography hierarchy */
+  --font-display: 'Orbitron', 'Geist Fallback', system-ui, sans-serif; /* command headers */
+  --font-heading: 'Rajdhani', 'Geist Fallback', system-ui, sans-serif; /* telemetry labels */
+  --font-sans: 'Exo 2', 'Geist Fallback', system-ui, sans-serif; /* body */
+  --font-mono: 'JetBrains Mono', 'Geist Mono Fallback', monospace; /* coordinates */
+
+  /* Holographic palette */
+  --color-jarvis-cyan: #2ff5ff;
+  --color-jarvis-teal: #14e0c8;
+  --color-jarvis-blue: #2b9bff;
+  --color-jarvis-deep: #0a84ff;
+  --color-jarvis-amber: #ffb020;
+  --color-jarvis-red: #ff4d5e;
+  --color-jarvis-green: #34f5a0;
+  --color-jarvis-bg: #00060e;
+  /* Premium subtle glass — Vision Pro x command center, not cyberpunk neon */
+  --color-jarvis-panel: rgba(0, 20, 35, 0.35);
+  --color-jarvis-border: rgba(0, 255, 255, 0.15);
+  --color-jarvis-glow: rgba(0, 255, 255, 0.35);
+
+  /* Shared glow tokens (restrained) */
+  --glow-cyan-soft: rgba(0, 255, 255, 0.1);
+  --glow-cyan-mid: rgba(0, 255, 255, 0.18);
+  --glow-cyan-hard: rgba(0, 255, 255, 0.4);
+  --glow-teal-soft: rgba(20, 224, 200, 0.12);
+
   /* Shadcn mappings */
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -62,38 +77,38 @@
 }
 
 :root {
-  --background: #0a0a0f;
-  --foreground: #e0f7ff;
-  --card: rgba(0, 20, 40, 0.85);
-  --card-foreground: #e0f7ff;
-  --popover: rgba(0, 20, 40, 0.95);
-  --popover-foreground: #e0f7ff;
-  --primary: #00d4ff;
-  --primary-foreground: #0a0a0f;
-  --secondary: rgba(0, 132, 255, 0.2);
-  --secondary-foreground: #00d4ff;
+  --background: #00060e;
+  --foreground: #d6fbff;
+  --card: rgba(0, 15, 30, 0.4);
+  --card-foreground: #d6fbff;
+  --popover: rgba(0, 12, 24, 0.92);
+  --popover-foreground: #d6fbff;
+  --primary: #2ff5ff;
+  --primary-foreground: #00060e;
+  --secondary: rgba(43, 155, 255, 0.18);
+  --secondary-foreground: #2ff5ff;
   --muted: rgba(0, 20, 40, 0.5);
-  --muted-foreground: rgba(224, 247, 255, 0.6);
-  --accent: rgba(0, 212, 255, 0.15);
-  --accent-foreground: #00d4ff;
-  --destructive: #ff3b30;
-  --border: rgba(0, 212, 255, 0.2);
-  --input: rgba(0, 212, 255, 0.1);
-  --ring: rgba(0, 212, 255, 0.5);
-  --chart-1: #00d4ff;
-  --chart-2: #0a84ff;
-  --chart-3: #30d158;
-  --chart-4: #ff9500;
-  --chart-5: #ff3b30;
+  --muted-foreground: rgba(150, 220, 235, 0.65);
+  --accent: rgba(47, 245, 255, 0.14);
+  --accent-foreground: #2ff5ff;
+  --destructive: #ff4d5e;
+  --border: rgba(47, 245, 255, 0.2);
+  --input: rgba(47, 245, 255, 0.1);
+  --ring: rgba(47, 245, 255, 0.5);
+  --chart-1: #2ff5ff;
+  --chart-2: #2b9bff;
+  --chart-3: #34f5a0;
+  --chart-4: #ffb020;
+  --chart-5: #ff4d5e;
   --radius: 0.5rem;
-  --sidebar: rgba(0, 15, 30, 0.9);
-  --sidebar-foreground: #e0f7ff;
-  --sidebar-primary: #00d4ff;
-  --sidebar-primary-foreground: #0a0a0f;
-  --sidebar-accent: rgba(0, 212, 255, 0.1);
-  --sidebar-accent-foreground: #00d4ff;
-  --sidebar-border: rgba(0, 212, 255, 0.2);
-  --sidebar-ring: rgba(0, 212, 255, 0.5);
+  --sidebar: rgba(0, 12, 24, 0.9);
+  --sidebar-foreground: #d6fbff;
+  --sidebar-primary: #2ff5ff;
+  --sidebar-primary-foreground: #00060e;
+  --sidebar-accent: rgba(47, 245, 255, 0.1);
+  --sidebar-accent-foreground: #2ff5ff;
+  --sidebar-border: rgba(47, 245, 255, 0.2);
+  --sidebar-ring: rgba(47, 245, 255, 0.5);
 }
 
 @layer base {
@@ -102,141 +117,274 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-color: var(--color-jarvis-bg);
   }
   html {
     @apply font-sans bg-jarvis-bg;
   }
 }
 
-/* Jarvis Effects */
-@keyframes scan {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
+/* ============================================================
+   KEYFRAMES — all GPU-accelerated (transform / opacity only)
+   ============================================================ */
+
+/* Expanding signal ring + pulsing core for real data markers only. */
+@keyframes signal-ring {
+  0% { transform: scale(0.4); opacity: 0.9; }
+  100% { transform: scale(2.6); opacity: 0; }
 }
 
-@keyframes pulse-glow {
-  0%, 100% { 
-    box-shadow: 0 0 5px var(--color-jarvis-cyan),
-                0 0 10px var(--color-jarvis-cyan),
-                0 0 15px rgba(0, 212, 255, 0.3);
-  }
-  50% { 
-    box-shadow: 0 0 10px var(--color-jarvis-cyan),
-                0 0 20px var(--color-jarvis-cyan),
-                0 0 30px rgba(0, 212, 255, 0.5);
-  }
+@keyframes beacon-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.25); opacity: 0.7; }
 }
 
+/* Gentle clock glow pulse (allowed minimal motion). */
+@keyframes clock-pulse {
+  0%, 100% { text-shadow: 0 0 8px var(--glow-cyan-mid); opacity: 1; }
+  50% { text-shadow: 0 0 16px var(--glow-cyan-hard); opacity: 0.94; }
+}
+
+/* Optional flowing border accent (HoloPanel `flow` prop). */
 @keyframes border-flow {
   0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
 }
 
-@keyframes typing {
-  from { width: 0; }
-  to { width: 100%; }
-}
+/* ============================================================
+   SHARED GLOW SYSTEM
+   ============================================================ */
 
-@keyframes blink {
-  50% { opacity: 0; }
-}
+.glow-sm { box-shadow: 0 0 10px var(--glow-cyan-soft); }
+.glow-md { box-shadow: 0 0 20px var(--glow-cyan-mid); }
+.glow-lg { box-shadow: 0 0 28px var(--glow-cyan-mid); }
+.glow-text { text-shadow: 0 0 10px var(--color-jarvis-glow); }
+.glow-text-strong { text-shadow: 0 0 8px var(--glow-cyan-hard); }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
-}
+/* ============================================================
+   HOLOGRAPHIC PANEL
+   ============================================================ */
 
-.jarvis-glow {
-  box-shadow: 0 0 10px var(--color-jarvis-cyan),
-              0 0 20px rgba(0, 212, 255, 0.3),
-              inset 0 0 10px rgba(0, 212, 255, 0.1);
-}
-
-.jarvis-border {
+.holo-panel {
+  position: relative;
+  background: var(--color-jarvis-panel);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
   border: 1px solid var(--color-jarvis-border);
+  box-shadow:
+    0 0 20px rgba(0, 255, 255, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition:
+    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.35s ease;
+}
+
+/* Whisper-soft inner reflection sheen */
+.holo-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    transparent 28%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+.holo-panel-hover:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 255, 255, 0.3);
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.4),
+    0 0 24px var(--glow-cyan-mid),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Animated flowing border accent */
+.holo-border-flow {
   position: relative;
 }
-
-.jarvis-border::before {
+.holo-border-flow::before {
   content: '';
   position: absolute;
   inset: -1px;
-  background: linear-gradient(90deg, 
-    transparent, 
-    var(--color-jarvis-cyan), 
-    transparent
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    var(--color-jarvis-cyan) 50%,
+    transparent 80%
   );
   background-size: 200% 100%;
-  animation: border-flow 3s linear infinite;
+  animation: border-flow 4s linear infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
   mask-composite: exclude;
-  padding: 1px;
-  border-radius: inherit;
   pointer-events: none;
-  opacity: 0.5;
+  opacity: 0.6;
 }
 
-.jarvis-panel {
-  background: var(--color-jarvis-panel);
-  backdrop-filter: blur(20px);
-  border: 1px solid var(--color-jarvis-border);
-  box-shadow: 
-    0 0 20px rgba(0, 212, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+/* Corner accents on a panel (use .holo-corners wrapper) */
+.holo-corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--color-jarvis-cyan);
+  pointer-events: none;
+  opacity: 0.45;
+}
+.holo-corner-tl { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
+.holo-corner-tr { top: -1px; right: -1px; border-left: 0; border-bottom: 0; }
+.holo-corner-bl { bottom: -1px; left: -1px; border-right: 0; border-top: 0; }
+.holo-corner-br { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
+
+/* ============================================================
+   TYPOGRAPHY HELPERS
+   ============================================================ */
+
+.holo-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.12em;
+  color: var(--color-jarvis-cyan);
+  text-shadow: 0 0 12px var(--glow-cyan-mid);
 }
 
-.jarvis-text {
+.holo-label {
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.holo-value {
+  font-family: var(--font-mono);
+  color: var(--color-jarvis-cyan);
+  text-shadow: 0 0 8px var(--glow-cyan-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.holo-text {
   color: var(--color-jarvis-cyan);
   text-shadow: 0 0 10px var(--color-jarvis-glow);
 }
 
-.scan-lines {
+/* ============================================================
+   MAP AMBIANCE LAYERS — minimal, static, professional
+   ============================================================ */
+
+/* Very faint static coordinate grid (<10% opacity), fades at edges. */
+.fx-grid {
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 212, 255, 0.03) 2px,
-    rgba(0, 212, 255, 0.03) 4px
-  );
+  background-image:
+    linear-gradient(rgba(0, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 72px 72px;
   pointer-events: none;
-  z-index: 100;
+  opacity: 0.6;
+  mask-image: radial-gradient(ellipse 92% 92% at 50% 50%, #000 50%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 92% 92% at 50% 50%, #000 50%, transparent 100%);
 }
 
-.grid-background {
-  background-image: 
-    linear-gradient(rgba(0, 212, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 212, 255, 0.05) 1px, transparent 1px);
-  background-size: 50px 50px;
+/* Soft cyan atmospheric glow — gentle halo, lets the map read through. */
+.fx-atmosphere {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 45%, rgba(0, 255, 255, 0.035), transparent 75%),
+    radial-gradient(ellipse 60% 50% at 85% 15%, rgba(43, 155, 255, 0.025), transparent 80%);
+  mix-blend-mode: screen;
 }
+
+/* Gentle vignette for focus — keeps edges legible without darkening the map. */
+.fx-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 86% 86% at 50% 50%,
+    transparent 68%,
+    rgba(0, 4, 10, 0.25) 94%,
+    rgba(0, 2, 6, 0.42) 100%
+  );
+}
+
+/* ============================================================
+   DATA MARKER / BEACON (only rendered for real map data)
+   ============================================================ */
+
+.beacon-core {
+  position: relative;
+  z-index: 10;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, var(--color-jarvis-cyan) 45%, rgba(47, 245, 255, 0.2) 100%);
+  box-shadow: 0 0 10px var(--glow-cyan-hard), 0 0 20px var(--glow-cyan-mid);
+  animation: beacon-pulse 2.4s ease-in-out infinite;
+}
+
+.beacon-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-jarvis-cyan);
+  animation: signal-ring 2.6s ease-out infinite;
+  will-change: transform, opacity;
+}
+
+/* ============================================================
+   MISC
+   ============================================================ */
+
+.clock-glow { animation: clock-pulse 2s ease-in-out infinite; }
 
 /* Traffic colors */
-.traffic-green { color: #30d158; }
-.traffic-yellow { color: #ff9500; }
-.traffic-red { color: #ff3b30; }
+.traffic-green { color: #34f5a0; }
+.traffic-yellow { color: #ffb020; }
+.traffic-red { color: #ff4d5e; }
 
-/* Hide maplibre attribution for cleaner UI */
-.maplibregl-ctrl-attrib {
-  display: none !important;
+/* MapLibre cleanup + tactical control restyle */
+.maplibregl-ctrl-attrib { display: none !important; }
+.maplibregl-ctrl-group {
+  background: rgba(0, 15, 30, 0.55) !important;
+  backdrop-filter: blur(14px) !important;
+  border: 1px solid var(--color-jarvis-border) !important;
+  box-shadow: 0 0 14px var(--glow-cyan-soft) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+.maplibregl-ctrl-group button {
+  background: transparent !important;
+}
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid rgba(47, 245, 255, 0.15) !important;
+}
+.maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: invert(72%) sepia(86%) saturate(1900%) hue-rotate(140deg) brightness(105%);
+}
+.maplibregl-ctrl-scale {
+  background: rgba(0, 15, 30, 0.5) !important;
+  border-color: var(--color-jarvis-border) !important;
+  color: var(--color-jarvis-cyan) !important;
+  font-family: var(--font-mono) !important;
 }
 
 /* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: rgba(0, 20, 40, 0.5); }
+::-webkit-scrollbar-thumb { background: var(--color-jarvis-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-jarvis-cyan); }
 
-::-webkit-scrollbar-track {
-  background: rgba(0, 20, 40, 0.5);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-jarvis-border);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-jarvis-cyan);
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .beacon-core, .beacon-ring, .clock-glow, .holo-border-flow::before {
+    animation: none !important;
+  }
 }

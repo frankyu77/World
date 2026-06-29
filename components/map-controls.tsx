@@ -1,7 +1,9 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Layers, CloudSun, Car, RotateCcw } from 'lucide-react'
+import { CloudSun, Car, RotateCcw, type LucideIcon } from 'lucide-react'
+import { HoloPanel } from './holo/holo-panel'
+import { cn } from '@/lib/utils'
 
 interface MapControlsProps {
   showTraffic: boolean
@@ -11,6 +13,7 @@ interface MapControlsProps {
   onResetView: () => void
 }
 
+/** Bottom-left layer controls: traffic + weather toggles and recenter. */
 export function MapControls({
   showTraffic,
   showWeather,
@@ -20,49 +23,20 @@ export function MapControls({
 }: MapControlsProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, x: 20 }}
+      initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: 0.3 }}
-      className="fixed left-4 top-32 md:top-1/2 md:-translate-y-1/2 z-30 flex flex-col gap-2"
+      transition={{ delay: 0.25, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      className="fixed bottom-6 left-6 z-30"
     >
-      {/* Layer Controls */}
-      <div className="jarvis-panel rounded-lg p-2 space-y-1">
-        <ControlButton
-          icon={Car}
-          label="Traffic"
-          isActive={showTraffic}
-          onClick={onToggleTraffic}
-        />
-        <ControlButton
-          icon={CloudSun}
-          label="Weather"
-          isActive={showWeather}
-          onClick={onToggleWeather}
-        />
-      </div>
-
-      {/* Reset View */}
-      <div className="jarvis-panel rounded-lg p-2">
-        <ControlButton
-          icon={RotateCcw}
-          label="Reset"
-          isActive={false}
-          onClick={onResetView}
-        />
-      </div>
-
-      {/* Legend (mobile hidden) */}
-      <div className="hidden lg:block jarvis-panel rounded-lg p-3 mt-2">
-        <div className="flex items-center gap-2 mb-2">
-          <Layers className="h-4 w-4 text-jarvis-cyan" />
-          <span className="text-xs font-mono text-muted-foreground">LEGEND</span>
+      <HoloPanel corners={false} className="p-4">
+        <span className="holo-label text-[10px]">LAYERS</span>
+        <div className="mt-3 space-y-2">
+          <ControlButton icon={Car} label="Traffic" isActive={showTraffic} onClick={onToggleTraffic} />
+          <ControlButton icon={CloudSun} label="Weather" isActive={showWeather} onClick={onToggleWeather} />
         </div>
-        <div className="space-y-1.5 text-xs">
-          <LegendItem color="bg-jarvis-green" label="Light traffic" />
-          <LegendItem color="bg-jarvis-amber" label="Moderate" />
-          <LegendItem color="bg-jarvis-red" label="Heavy" />
-        </div>
-      </div>
+        <div className="my-3 h-px w-full bg-jarvis-cyan/15" />
+        <ControlButton icon={RotateCcw} label="Recenter" isActive={false} onClick={onResetView} />
+      </HoloPanel>
     </motion.div>
   )
 }
@@ -73,7 +47,7 @@ function ControlButton({
   isActive,
   onClick,
 }: {
-  icon: typeof Car
+  icon: LucideIcon
   label: string
   isActive: boolean
   onClick: () => void
@@ -81,26 +55,25 @@ function ControlButton({
   return (
     <button
       onClick={onClick}
-      className={`
-        flex items-center gap-2 px-3 py-2 rounded-md transition-all w-full
-        ${isActive 
-          ? 'bg-jarvis-cyan/20 text-jarvis-cyan' 
-          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-        }
-      `}
       title={label}
+      className={cn(
+        'group flex w-full items-center gap-2.5 rounded-md px-3 py-2 transition-all',
+        isActive
+          ? 'bg-jarvis-cyan/12 text-jarvis-cyan'
+          : 'text-muted-foreground hover:bg-jarvis-cyan/8 hover:text-foreground',
+      )}
     >
-      <Icon className="h-4 w-4" />
-      <span className="text-xs font-mono hidden sm:inline">{label}</span>
+      <Icon
+        className="h-4 w-4 transition-transform group-hover:scale-110"
+        style={isActive ? { filter: 'drop-shadow(0 0 4px var(--glow-cyan-hard))' } : undefined}
+      />
+      <span className="holo-label text-[10px]">{label}</span>
+      <span
+        className={cn(
+          'ml-auto h-1.5 w-1.5 rounded-full transition-all',
+          isActive ? 'bg-jarvis-cyan animate-pulse' : 'bg-muted-foreground/30',
+        )}
+      />
     </button>
-  )
-}
-
-function LegendItem({ color, label }: { color: string; label: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className={`h-2 w-4 rounded ${color}`} />
-      <span className="text-muted-foreground">{label}</span>
-    </div>
   )
 }
