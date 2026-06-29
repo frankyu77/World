@@ -1,16 +1,15 @@
 'use client'
 
-import { useRef, useCallback, useState, useEffect } from 'react'
-import Map, { 
-  MapRef, 
-  NavigationControl, 
+import { useRef, useCallback, useState, useMemo } from 'react'
+import Map, {
+  MapRef,
+  NavigationControl,
   GeolocateControl,
-  ScaleControl,
   Marker,
   Source,
   Layer
 } from 'react-map-gl/maplibre'
-import type { MapLayerMouseEvent, LngLatBoundsLike } from 'maplibre-gl'
+import type { MapLayerMouseEvent, Map as MapLibreMap } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { jarvisMapStyle, zoomThresholds } from '@/lib/map-style'
 import { SearchBar } from './search-bar'
@@ -19,6 +18,8 @@ import { MapControls } from './map-controls'
 import { HudOverlay } from './hud-overlay'
 import { WeatherMarker } from './weather-marker'
 import { BootSequence } from './boot-sequence'
+import { HoloBeacon } from './holo/holo-beacon'
+import { MapProjectionFX, AtmosphereFX } from './holographic-overlays'
 import { useViewportData } from '@/hooks/use-viewport-data'
 
 interface ViewState {
@@ -38,6 +39,13 @@ export interface SelectedCity {
   state?: string
 }
 
+interface Bounds {
+  north: number
+  south: number
+  east: number
+  west: number
+}
+
 export function JarvisMap() {
   const mapRef = useRef<MapRef>(null)
   const [viewState, setViewState] = useState<ViewState>({
@@ -53,18 +61,25 @@ export function JarvisMap() {
   const [showWeather, setShowWeather] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [isBooted, setIsBooted] = useState(false)
+  // Viewport bounds live in state and are refreshed only when the map settles,
+  // not on every render. Reading getBounds() during render returns a new object
+  // each time, which would churn effect dependencies and re-renders.
+  const [bounds, setBounds] = useState<Bounds | null>(null)
 
-  // Get viewport bounds for data fetching
-  const bounds = mapRef.current?.getMap()?.getBounds()
-  const { cities, isLoadingCities } = useViewportData(
-    bounds ? {
-      north: bounds.getNorth(),
-      south: bounds.getSouth(),
-      east: bounds.getEast(),
-      west: bounds.getWest(),
-    } : null,
-    viewState.zoom
-  )
+  // Snapshot bounds from the map after it loads / finishes moving. Skips the
+  // update when the rounded viewport hasn't actually changed.
+  const lastBoundsKey = useRef<string>('')
+  const refreshBounds = useCallback((map: MapLibreMap | undefined) => {
+    const b = map?.getBounds()
+    if (!b) return
+    const next: Bounds = { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() }
+    const key = `${next.north.toFixed(3)},${next.south.toFixed(3)},${next.east.toFixed(3)},${next.west.toFixed(3)}`
+    if (key === lastBoundsKey.current) return
+    lastBoundsKey.current = key
+    setBounds(next)
+  }, [])
+
+  const { cities, isLoadingCities } = useViewportData(bounds, viewState.zoom)
 
   // Handle city selection from search
   const handleCitySelect = useCallback((city: SelectedCity) => {
@@ -127,6 +142,8 @@ export function JarvisMap() {
         ref={mapRef}
         {...viewState}
         onMove={handleMove}
+        onMoveEnd={(e) => refreshBounds(e.target)}
+        onLoad={(e) => refreshBounds(e.target)}
         onClick={handleMapClick}
         mapStyle={jarvisMapStyle}
         style={{ width: '100%', height: '100%' }}
@@ -137,10 +154,9 @@ export function JarvisMap() {
         touchPitch={true}
         dragRotate={true}
       >
-        {/* Navigation Controls */}
+        {/* Navigation Controls (kept minimal; scale bar removed for a cleaner HUD) */}
         <NavigationControl position="bottom-right" showCompass={true} />
         <GeolocateControl position="bottom-right" />
-        <ScaleControl position="bottom-left" />
 
         {/* Traffic Layer */}
         {showTraffic && viewState.zoom >= zoomThresholds.majorCities && trafficData && (
@@ -155,7 +171,8 @@ export function JarvisMap() {
                   10, 2,
                   15, 6
                 ],
-                'line-opacity': 0.8,
+                'line-opacity': 0.85,
+                'line-blur': 1.5,
               }}
             />
           </Source>
@@ -187,22 +204,23 @@ export function JarvisMap() {
           <Marker
             longitude={selectedCity.longitude}
             latitude={selectedCity.latitude}
-            anchor="bottom"
+            anchor="center"
           >
-            <div className="relative">
-              <div className="h-6 w-6 rounded-full bg-jarvis-cyan animate-ping absolute" />
-              <div className="h-6 w-6 rounded-full bg-jarvis-cyan jarvis-glow relative z-10" />
-            </div>
+            <HoloBeacon size={18} rings={4} />
           </Marker>
         )}
       </Map>
 
+      {/* Holographic projection effects cast over the map */}
+      <MapProjectionFX />
+
       {/* HUD Overlay */}
-      <HudOverlay 
+      <HudOverlay
         zoom={viewState.zoom}
         latitude={viewState.latitude}
         longitude={viewState.longitude}
         isLoading={isLoading || isLoadingCities}
+        nodeCount={cities.length}
       />
 
       {/* Search Bar */}
@@ -237,72 +255,58 @@ export function JarvisMap() {
         onClose={handleClosePanel}
       />
 
-      {/* Scan Lines Effect */}
-      <div className="scan-lines opacity-30" />
+      {/* Top-most ambiance: gentle vignette + soft cyan glow */}
+      <AtmosphereFX />
     </div>
   )
 }
 
-// Hook for simulated traffic data
-function useTrafficData(zoom: number, bounds: LngLatBoundsLike | null | undefined) {
-  const [trafficData, setTrafficData] = useState<GeoJSON.FeatureCollection | null>(null)
+/**
+ * Simulated traffic overlay derived purely from the current viewport.
+ *
+ * This is DERIVED state, so it lives in useMemo — never useState/useEffect.
+ * The memo is keyed on primitives only (a rounded bounds string + an integer
+ * zoom bucket), so it recomputes only when the viewport meaningfully changes
+ * and can never trigger a state update / re-render loop.
+ */
+function useTrafficData(zoom: number, bounds: Bounds | null) {
+  const boundsKey = bounds
+    ? `${bounds.north.toFixed(2)},${bounds.south.toFixed(2)},${bounds.east.toFixed(2)},${bounds.west.toFixed(2)}`
+    : ''
+  const zoomBucket = Math.floor(zoom)
 
-  useEffect(() => {
-    if (zoom < zoomThresholds.majorCities || !bounds) {
-      setTrafficData(null)
-      return
-    }
+  return useMemo<GeoJSON.FeatureCollection | null>(() => {
+    if (!bounds || zoomBucket < zoomThresholds.majorCities) return null
 
-    // Generate simulated traffic data
     const hour = new Date().getHours()
     const isRushHour = (hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)
-    
-    // Create some random road segments for demo
-    const features: GeoJSON.Feature[] = []
-    const numSegments = Math.min(50, Math.floor(zoom * 3))
-    
-    // Get bounds as array if it's an object
-    let boundsArray: [[number, number], [number, number]]
-    if (Array.isArray(bounds)) {
-      boundsArray = bounds as [[number, number], [number, number]]
-    } else if ('_sw' in bounds && '_ne' in bounds) {
-      const b = bounds as { _sw: { lng: number; lat: number }; _ne: { lng: number; lat: number } }
-      boundsArray = [[b._sw.lng, b._sw.lat], [b._ne.lng, b._ne.lat]]
-    } else {
-      return
-    }
 
-    const [sw, ne] = boundsArray
-    const lngRange = ne[0] - sw[0]
-    const latRange = ne[1] - sw[1]
+    const features: GeoJSON.Feature[] = []
+    const numSegments = Math.min(50, zoomBucket * 3)
+    const lngRange = bounds.east - bounds.west
+    const latRange = bounds.north - bounds.south
 
     for (let i = 0; i < numSegments; i++) {
-      const startLng = sw[0] + Math.random() * lngRange
-      const startLat = sw[1] + Math.random() * latRange
+      const startLng = bounds.west + Math.random() * lngRange
+      const startLat = bounds.south + Math.random() * latRange
       const endLng = startLng + (Math.random() - 0.5) * 0.02
       const endLat = startLat + (Math.random() - 0.5) * 0.02
 
-      // Determine traffic level
       const trafficLevel = Math.random() * (isRushHour ? 1.5 : 1)
-      let color = '#30d158' // green
-      if (trafficLevel > 0.7) color = '#ff9500' // yellow
-      if (trafficLevel > 0.9) color = '#ff3b30' // red
+      let color = '#34f5a0' // green
+      if (trafficLevel > 0.7) color = '#ffb020' // amber
+      if (trafficLevel > 0.9) color = '#ff4d5e' // red
 
       features.push({
         type: 'Feature',
         properties: { color, level: trafficLevel },
-        geometry: {
-          type: 'LineString',
-          coordinates: [[startLng, startLat], [endLng, endLat]],
-        },
+        geometry: { type: 'LineString', coordinates: [[startLng, startLat], [endLng, endLat]] },
       })
     }
 
-    setTrafficData({
-      type: 'FeatureCollection',
-      features,
-    })
-  }, [zoom, bounds])
-
-  return trafficData
+    return { type: 'FeatureCollection', features }
+    // Keyed on the primitive boundsKey + zoomBucket; bounds values are constant
+    // for a given key, so reading bounds here is safe and intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boundsKey, zoomBucket])
 }

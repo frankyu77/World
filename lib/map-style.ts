@@ -1,10 +1,11 @@
 import type { StyleSpecification } from 'maplibre-gl'
 
-// Jarvis-themed dark map style for MapLibre GL
-// Uses OpenStreetMap tiles with custom dark styling
+// AEGIS holographic tactical map style for MapLibre GL.
+// Uses CARTO dark raster tiles, recolored toward a deep cyan command-display
+// look: near-black landmass, high-contrast glowing coastlines/borders.
 export const jarvisMapStyle: StyleSpecification = {
   version: 8,
-  name: 'Jarvis Dark',
+  name: 'AEGIS Tactical',
   sources: {
     'osm-tiles': {
       type: 'raster',
@@ -19,6 +20,12 @@ export const jarvisMapStyle: StyleSpecification = {
     },
   },
   layers: [
+    // Deep space base so gaps read black, not gray.
+    {
+      id: 'aegis-bg',
+      type: 'background',
+      paint: { 'background-color': '#00060e' },
+    },
     {
       id: 'osm-tiles-layer',
       type: 'raster',
@@ -26,11 +33,17 @@ export const jarvisMapStyle: StyleSpecification = {
       minzoom: 0,
       maxzoom: 22,
       paint: {
-        'raster-saturation': -0.8,
-        'raster-brightness-min': 0.05,
-        'raster-brightness-max': 0.4,
-        'raster-contrast': 0.3,
-        'raster-hue-rotate': 180,
+        // GIS-first: oceans stay deep while land, coastlines, boundaries and
+        // roads are pushed forward as the visual focus. Higher contrast makes
+        // the bright line features (borders / roads / labels) read crisply; a
+        // restrained hue-rotate gives a cool steel-cyan cast while keeping
+        // labels legible.
+        'raster-saturation': -0.1,
+        'raster-brightness-min': 0.03,
+        'raster-brightness-max': 1,
+        'raster-contrast': 0.28,
+        'raster-hue-rotate': 150,
+        'raster-opacity': 1,
       },
     },
   ],
@@ -60,26 +73,26 @@ export const jarvisVectorStyle: StyleSpecification = {
   ],
 }
 
-// Color palette for the Jarvis theme
+// Color palette for the AEGIS holographic theme
 export const jarvisColors = {
-  primary: '#00d4ff',
-  secondary: '#0a84ff',
-  warning: '#ff9500',
-  danger: '#ff3b30',
-  success: '#30d158',
-  background: '#0a0a0f',
-  panel: 'rgba(0, 20, 40, 0.85)',
-  border: 'rgba(0, 212, 255, 0.3)',
-  glow: 'rgba(0, 212, 255, 0.5)',
-  text: '#e0f7ff',
-  textMuted: 'rgba(224, 247, 255, 0.6)',
+  primary: '#2ff5ff',
+  secondary: '#2b9bff',
+  warning: '#ffb020',
+  danger: '#ff4d5e',
+  success: '#34f5a0',
+  background: '#00060e',
+  panel: 'rgba(0, 15, 30, 0.4)',
+  border: 'rgba(47, 245, 255, 0.25)',
+  glow: 'rgba(47, 245, 255, 0.55)',
+  text: '#d6fbff',
+  textMuted: 'rgba(150, 220, 235, 0.65)',
 }
 
 // Traffic colors
 export const trafficColors = {
-  free: '#30d158',      // Green - free flow
-  moderate: '#ff9500',  // Yellow/amber - moderate
-  heavy: '#ff3b30',     // Red - heavy traffic
+  free: '#34f5a0',      // Green - free flow
+  moderate: '#ffb020',  // Amber - moderate
+  heavy: '#ff4d5e',     // Red - heavy traffic
   blocked: '#8b0000',   // Dark red - road blocked
 }
 
