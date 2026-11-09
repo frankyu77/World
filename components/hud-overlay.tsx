@@ -15,6 +15,8 @@ interface HudOverlayProps {
   activeNodes: number
   /** Moving tracks (aircraft + satellites) currently on screen. */
   tracking: number
+  /** The city panel occupies the right edge: slide the right-column panels out of its way. */
+  rightColumnHidden?: boolean
 }
 
 function formatTime(date: Date) {
@@ -39,7 +41,13 @@ function zoomTier(zoom: number) {
  *   bottom-center → zoom / global view
  *   bottom-right → signal strength
  */
-export function HudOverlay({ zoom, latitude, longitude, isLoading, activeNodes, tracking }: HudOverlayProps) {
+export function HudOverlay({ zoom, latitude, longitude, isLoading, activeNodes, tracking, rightColumnHidden = false }: HudOverlayProps) {
+  // Same easing as the panels' own fadeRight entrance.
+  const rightColumn = {
+    animate: rightColumnHidden ? { x: 48, opacity: 0 } : { x: 0, opacity: 1 },
+    transition: motionPresets.fadeRight.transition,
+  }
+
   const [now, setNow] = useState<Date | null>(null)
   const [signal, setSignal] = useState(96)
 
@@ -82,7 +90,7 @@ export function HudOverlay({ zoom, latitude, longitude, isLoading, activeNodes, 
       </div>
 
       {/* ── TOP-RIGHT · Intelligence metrics ───────────────────────── */}
-      <div className="fixed right-6 top-6 z-20 pointer-events-none hidden md:block">
+      <motion.div {...rightColumn} className="fixed right-6 top-6 z-20 pointer-events-none hidden md:block">
         <HoloPanel {...motionPresets.fadeRight} className="w-[176px] p-4">
           <div className="flex items-center gap-2">
             <Crosshair className="h-3.5 w-3.5 text-jarvis-cyan" />
@@ -93,7 +101,7 @@ export function HudOverlay({ zoom, latitude, longitude, isLoading, activeNodes, 
             <Metric label="Tracking" value={tracking} sub="targets" />
           </div>
         </HoloPanel>
-      </div>
+      </motion.div>
 
       {/* ── BOTTOM-CENTER · Zoom / global view ─────────────────────── */}
       <div className="fixed bottom-6 left-1/2 z-20 -translate-x-1/2 pointer-events-none">
@@ -105,7 +113,7 @@ export function HudOverlay({ zoom, latitude, longitude, isLoading, activeNodes, 
       </div>
 
       {/* ── BOTTOM-RIGHT · Signal strength ─────────────────────────── */}
-      <div className="fixed bottom-36 right-6 z-20 pointer-events-none hidden lg:block">
+      <motion.div {...rightColumn} className="fixed bottom-36 right-6 z-20 pointer-events-none hidden lg:block">
         <HoloPanel {...motionPresets.fadeRight} className="w-[168px] p-4">
           <div className="flex items-center gap-2">
             <Radio className="h-3.5 w-3.5 text-jarvis-cyan" />
@@ -126,7 +134,7 @@ export function HudOverlay({ zoom, latitude, longitude, isLoading, activeNodes, 
             ))}
           </div>
         </HoloPanel>
-      </div>
+      </motion.div>
 
       {/* Targeting overlay while acquiring */}
       {isLoading && (

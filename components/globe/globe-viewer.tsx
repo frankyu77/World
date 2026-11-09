@@ -6,6 +6,7 @@ import { loadCesium } from '@/lib/globe/cesium-env'
 import { createViewer, startIdleRotation } from '@/lib/globe/scene'
 import { fadeNightLights, setupImagery } from '@/lib/globe/imagery'
 import { warmUpShaders } from '@/lib/globe/warmup'
+import { prefetchDestinationTiles } from '@/lib/globe/prefetch'
 import { flyHome, flyLevel, flyToCity, readCameraState, readViewBounds } from '@/lib/globe/camera'
 import type { CameraState, FrameListener, GlobeHandle, ImageryMode, ScreenPoint, ViewBounds } from '@/lib/globe/types'
 
@@ -38,6 +39,8 @@ const HIDDEN: ScreenPoint = { x: 0, y: 0, visible: false }
 const CAMERA_EMIT_MS = 100
 const SETTLED_THROTTLE_MS = 1500
 const SETTLED_DEBOUNCE_MS = 250
+/** After a city flight lands, wait at most this long for sharp tiles before opening the panel. */
+const ARRIVAL_TILE_WAIT_MS = 2000
 
 /**
  * Client-only Cesium host. Loaded through next/dynamic with ssr:false: Cesium touches
@@ -157,13 +160,41 @@ export default function GlobeViewer({
       const scratch = new Cesium.Cartesian3()
       const scratchWindow = new Cesium.Cartesian2()
 
+      let imageryMode: ImageryMode | null = null
+      let prefetch: AbortController | null = null
+      teardown.push(() => prefetch?.abort())
+
+      /** Resolves once the globe has every visible tile, or after `capMs`. */
+      const whenTilesLoaded = (capMs: number, done: () => void) => {
+        const started = performance.now()
+        let finished = false
+        const finish = () => {
+          if (finished) return
+          finished = true
+          remove()
+          done()
+        }
+        const remove = scene.postRender.addEventListener(() => {
+          if (scene.globe.tilesLoaded || performance.now() - started >= capMs) finish()
+        })
+        // postRender stops if the tab is hidden; the cap still has to hold.
+        setTimeout(finish, capMs + 100)
+      }
+
+      let flightSeq = 0
       const handle: GlobeHandle = {
         flyToCity(point, onArrive) {
+          const seq = ++flightSeq
           rotation.setFlightActive(true)
+          prefetch?.abort()
+          prefetch = imageryMode === 'esri' ? prefetchDestinationTiles(point) : null
           flyToCity(Cesium, camera, point, () => {
             rotation.setFlightActive(false)
             emitSettled()
-            onArrive()
+            // Hold the panel until the destination is sharp (capped), so it opens on crisp imagery.
+            whenTilesLoaded(ARRIVAL_TILE_WAIT_MS, () => {
+              if (seq === flightSeq) onArrive()
+            })
           })
         },
         resetView() {
@@ -215,6 +246,7 @@ export default function GlobeViewer({
           scene.preUpdate.addEventListener(() => fadeNightLights(nightLayer, camera.positionCartographic.height)),
         )
       }
+      imageryMode = imagery.mode
       callbacks.current.onImageryReady(imagery.mode)
 
       if (concealedRef.current) {

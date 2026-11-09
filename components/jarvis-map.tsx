@@ -150,6 +150,7 @@ export function JarvisMap() {
         isLoading={isLoading || isLoadingCities}
         activeNodes={showWeather ? cities.length : 0}
         tracking={0}
+        rightColumnHidden={isPanelOpen}
       />
 
       <SearchBar onCitySelect={handleCitySelect} isLoading={isLoading} />

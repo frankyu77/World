@@ -62,9 +62,9 @@ export function boundsContain(bounds: ViewBounds, point: GeoPoint): boolean {
 }
 
 /** Final framing of a city flight: viewing distance, and the pitched, rotated look of the old map's flyTo. */
-const CITY_RANGE_METERS = 16_000
-const CITY_HEADING_DEG = -30
-const CITY_PITCH_DEG = -38
+export const CITY_RANGE_METERS = 16_000
+export const CITY_HEADING_DEG = -30
+export const CITY_PITCH_DEG = -38
 const CITY_FLIGHT_SECONDS = 3.2
 
 export function flyToCity(

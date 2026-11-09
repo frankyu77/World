@@ -2,7 +2,15 @@ import type { ImageryLayer, ImageryProvider, Viewer } from 'cesium'
 import type { CesiumModule } from './cesium-env'
 import type { ImageryMode } from './types'
 
-const ESRI_WORLD_IMAGERY = 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+/**
+ * Esri World Imagery tiles. Esri serves these over HTTP/1.1, where the browser allows
+ * only 6 connections per host; the same tiles are on two hostnames, so rotating between
+ * them doubles throughput. Cesium picks `subdomains[(x + y + level) % n]`, which
+ * prefetch.ts mirrors so prefetched URLs hit the browser cache (Esri sends max-age=86400).
+ */
+export const ESRI_TILE_TEMPLATE = 'https://{s}.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+export const ESRI_SUBDOMAINS = ['services', 'server'] as const
+const ESRI_MAX_LEVEL = 19
 
 /** NASA GIBS VIIRS Black Marble (keyless WMTS, web-mercator, max level 8). */
 const GIBS_BLACK_MARBLE =
@@ -83,9 +91,12 @@ async function useGoogle3d(Cesium: CesiumModule, viewer: Viewer, key: string): P
   viewer.scene.primitives.add(tileset)
 }
 
-async function useEsri(Cesium: CesiumModule, viewer: Viewer): Promise<ImageryLayer> {
-  const base: ImageryProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(ESRI_WORLD_IMAGERY, {
-    enablePickFeatures: false,
+function useEsri(Cesium: CesiumModule, viewer: Viewer): ImageryLayer {
+  const base: ImageryProvider = new Cesium.UrlTemplateImageryProvider({
+    url: ESRI_TILE_TEMPLATE,
+    subdomains: [...ESRI_SUBDOMAINS],
+    maximumLevel: ESRI_MAX_LEVEL,
+    credit: new Cesium.Credit('Powered by Esri. Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'),
   })
   const baseLayer = new Cesium.ImageryLayer(base)
   styleBaseLayer(baseLayer)
@@ -132,7 +143,7 @@ export async function setupImagery(Cesium: CesiumModule, viewer: Viewer): Promis
     skipped.push('google3d: no NEXT_PUBLIC_GOOGLE_MAPS_KEY')
   }
 
-  const nightLayer = await useEsri(Cesium, viewer)
+  const nightLayer = useEsri(Cesium, viewer)
   return { mode: 'esri', nightLayer, skipped }
 }
 
