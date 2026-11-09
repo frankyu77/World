@@ -32,19 +32,56 @@ float centerDistance(vec2 uv) {
 `
 
 /**
+ * Depth helpers. Space and the skybox keep the cleared depth (1.0); anything on the globe is
+ * nearer. That separates "globe" from "space" without any extra pass, so the night lift only
+ * touches land/ocean and the silhouette rim works whatever side the sun is on.
+ */
+const DEPTH = /* glsl */ `
+uniform sampler2D depthTexture;
+float isGlobe(vec2 uv) { return step(czm_readDepth(depthTexture, uv), 0.99999); }
+
+// Fraction of globe pixels on two rings (4 px, 10 px) around a space pixel: a soft halo just
+// outside the silhouette. 16 depth taps; zero on the globe itself.
+float silhouetteRim(vec2 uv) {
+  if (isGlobe(uv) > 0.5) return 0.0;
+  vec2 px = 1.0 / czm_viewport.zw;
+  float near = 0.0;
+  float far = 0.0;
+  for (int i = 0; i < 8; i++) {
+    float a = float(i) * 0.78539816;
+    vec2 d = vec2(cos(a), sin(a));
+    near += isGlobe(uv + d * px * 4.0);
+    far += isGlobe(uv + d * px * 10.0);
+  }
+  return near / 8.0 * 0.65 + far / 8.0 * 0.35;
+}
+
+// Night-side lift for globe pixels: gains the darkest tones and pushes them toward deep blue,
+// so the night hemisphere reads as dark land rather than a void. Daylit tones pass unchanged.
+vec3 liftNight(vec3 c, float globe, vec3 tint, float gain) {
+  float dark = 1.0 - smoothstep(0.0, 0.25, luma(c));
+  return c + globe * dark * (c * gain + tint);
+}
+`
+
+/**
  * AEGIS: the default command grade. Subtle darken, slight desaturation, cool cyan tint,
  * a faint teal lift in the blacks so space matches the HUD background (#00060e), light vignette.
  */
 const AEGIS = /* glsl */ `
 ${COMMON}
+${DEPTH}
 void main() {
   vec2 uv = v_textureCoordinates;
   vec3 c = texture(colorTexture, uv).rgb;
+  float globe = isGlobe(uv);
+  c = liftNight(c, globe, vec3(0.014, 0.050, 0.115), 2.6);  // night side -> dark blue land
   float l = luma(c);
   c = mix(vec3(l), c, 0.74);                 // slight desaturation
   c *= 0.86;                                 // subtle darken
   c *= vec3(0.90, 1.0, 1.07);                // cool cyan balance
   c += vec3(0.0, 0.022, 0.05) * (1.0 - l);   // teal lift in shadows (space -> HUD bg)
+  c += vec3(0.10, 0.62, 0.78) * silhouetteRim(uv) * 0.55;   // faint cyan atmosphere rim
   float vig = smoothstep(1.7, 0.6, centerDistance(uv));
   c *= mix(0.80, 1.0, vig);                  // light vignette
   out_FragColor = vec4(c, 1.0);
@@ -66,12 +103,19 @@ void main() {
     halo += texture(colorTexture, uv + vec2(cos(a), sin(a)) * px * 3.5).rgb;
   }
   halo /= 8.0;
+  // Wide ring: bright point sources (city lights) bloom the way they do through an intensifier.
+  vec3 wide = vec3(0.0);
+  for (int i = 0; i < 8; i++) {
+    float a = float(i) * 0.78539816 + 0.39269908;
+    wide += texture(colorTexture, uv + vec2(cos(a), sin(a)) * px * 11.0).rgb;
+  }
+  wide /= 8.0;
   float l = luma(c);
-  float lh = luma(halo);
+  float lh = max(luma(halo), luma(wide) * 0.8);
   // Intensifier gain curve: lifts faint detail, compresses highlights. Gain 2.0 keeps daylight
   // scenes from saturating to flat green (3.2 blew out a sunlit city); the S-curve restores
   // local contrast the compression takes away.
-  float g = 1.0 - exp(-(l * 2.0 + max(lh - 0.35, 0.0) * 1.6));
+  float g = 1.0 - exp(-(l * 2.0 + max(lh - 0.22, 0.0) * 2.6));
   g = smoothstep(0.02, 0.95, g);
   // Scintillation: per-pixel noise re-rolled every frame, stronger in the dark.
   float n = hash12(floor(uv * czm_viewport.zw) + floor(time * 60.0) * vec2(37.0, 17.0)) - 0.5;
@@ -127,6 +171,7 @@ void main() {
 /** CRT: barrel curvature, RGB convergence error, scanlines, aperture-grille mask, flicker. */
 const CRT = /* glsl */ `
 ${COMMON}
+${DEPTH}
 uniform float time;
 vec2 barrel(vec2 uv) {
   vec2 c = uv * 2.0 - 1.0;
@@ -147,6 +192,8 @@ void main() {
   c.r = texture(colorTexture, uv + ca).r;
   c.g = texture(colorTexture, uv).g;
   c.b = texture(colorTexture, uv - ca).b;
+  c = liftNight(c, isGlobe(uv), vec3(0.016, 0.045, 0.085), 2.6);
+  c += vec3(0.20, 0.55, 0.60) * silhouetteRim(uv) * 0.45;
   float scan = 0.72 + 0.28 * pow(sin(uv.y * czm_viewport.w * 1.5708), 2.0);   // one line per 2 px
   float col = mod(gl_FragCoord.x, 3.0);
   vec3 mask = vec3(col < 1.0 ? 1.0 : 0.78, (col >= 1.0 && col < 2.0) ? 1.0 : 0.78, col >= 2.0 ? 1.0 : 0.78);
@@ -162,11 +209,15 @@ void main() {
 /** NOIR: high-contrast monochrome with a cool cast, film grain and a heavy vignette. */
 const NOIR = /* glsl */ `
 ${COMMON}
+${DEPTH}
 uniform float time;
 void main() {
   vec2 uv = v_textureCoordinates;
-  float l = luma(texture(colorTexture, uv).rgb);
-  l = smoothstep(0.02, 0.85, l);                                   // contrast S-curve
+  vec3 src = liftNight(texture(colorTexture, uv).rgb, isGlobe(uv), vec3(0.06), 3.2);
+  float l = luma(src);
+  // Contrast S-curve; its toe starts below zero so the lifted night tones aren't crushed back to black.
+  l = smoothstep(-0.04, 0.85, l);
+  l += silhouetteRim(uv) * 0.22;
   l += (hash12(floor(uv * czm_viewport.zw) + floor(time * 24.0) * vec2(11.0, 23.0)) - 0.5) * 0.07;
   l *= mix(0.55, 1.0, smoothstep(1.5, 0.45, centerDistance(uv)));
   out_FragColor = vec4(vec3(l) * vec3(0.95, 0.98, 1.03), 1.0);

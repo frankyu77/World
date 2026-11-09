@@ -22,7 +22,12 @@ export interface SensorController {
  * flips `enabled`, so no shader is built mid-session. `time` is a uniform function Cesium
  * evaluates per frame, and only enabled stages execute, so idle modes cost nothing.
  */
-export function createSensorController(Cesium: CesiumModule, scene: Scene): SensorController {
+export function createSensorController(
+  Cesium: CesiumModule,
+  scene: Scene,
+  /** Scene-side changes for a mode (night profile, lighting); called whenever a mode is applied. */
+  onApply: (mode: SensorMode) => void,
+): SensorController {
   const t0 = performance.now()
   const elapsed = () => (performance.now() - t0) / 1000
   const stages = new Map<StagedMode, PostProcessStage>()
@@ -41,6 +46,7 @@ export function createSensorController(Cesium: CesiumModule, scene: Scene): Sens
   let current: SensorMode = DEFAULT_SENSOR_MODE
   const apply = (mode: SensorMode) => {
     for (const [id, stage] of stages) stage.enabled = id === mode
+    onApply(mode)
   }
   apply(current)
 
@@ -53,7 +59,8 @@ export function createSensorController(Cesium: CesiumModule, scene: Scene): Sens
       apply(mode)
     },
     warmUp(onDone) {
-      const order = [...stages.keys()]
+      // Every mode, not just staged ones, so each scene profile is also exercised once.
+      const order: SensorMode[] = [...stages.keys(), 'raw']
       let frame = 0
       let finished = false
       const finish = () => {

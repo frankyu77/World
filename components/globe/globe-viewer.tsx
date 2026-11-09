@@ -3,8 +3,9 @@
 import { useEffect, useRef } from 'react'
 import type { Viewer } from 'cesium'
 import { loadCesium } from '@/lib/globe/cesium-env'
-import { createViewer, startIdleRotation } from '@/lib/globe/scene'
-import { fadeNightLights, setupImagery } from '@/lib/globe/imagery'
+import { createViewer, setFlatLighting, startIdleRotation, updateSkyAtmosphere } from '@/lib/globe/scene'
+import { applyNightProfile, fadeNightLights, setupImagery, type ImageryResult } from '@/lib/globe/imagery'
+import { nightProfileFor } from '@/lib/globe/sensors/modes'
 import { warmUpShaders } from '@/lib/globe/warmup'
 import { prefetchDestinationTiles } from '@/lib/globe/prefetch'
 import { createSensorController } from '@/lib/globe/sensors/controller'
@@ -86,7 +87,16 @@ export default function GlobeViewer({
       const { scene, camera } = v
       const rotation = startIdleRotation(Cesium, v)
       teardown.push(() => rotation.destroy())
-      const sensors = createSensorController(Cesium, scene)
+      // Per-mode scene side: night profile on the imagery, flat lighting for NVG/FLIR. The
+      // imagery layers arrive later (setupImagery); the current mode is re-applied then.
+      let imageryLayers: Pick<ImageryResult, 'baseLayer' | 'nightLayer'> | null = null
+      const sensors = createSensorController(Cesium, scene, (mode) => {
+        const profile = nightProfileFor(mode)
+        setFlatLighting(scene, profile === 'flat')
+        if (imageryLayers) applyNightProfile(imageryLayers, profile)
+      })
+      updateSkyAtmosphere(scene, camera.positionCartographic.height)
+      teardown.push(scene.preUpdate.addEventListener(() => updateSkyAtmosphere(scene, camera.positionCartographic.height)))
       teardown.push(() => sensors.destroy())
 
       // Camera readouts: throttled while moving, plus a settled event with bounds.
@@ -253,6 +263,8 @@ export default function GlobeViewer({
         )
       }
       imageryMode = imagery.mode
+      imageryLayers = imagery
+      sensors.setMode(sensors.mode)
       callbacks.current.onImageryReady(imagery.mode)
 
       if (concealedRef.current) {

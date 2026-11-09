@@ -19,10 +19,17 @@ const GIBS_BLACK_MARBLE =
 const ION_BING_AERIAL_ASSET = 2
 const ION_BLACK_MARBLE_ASSET = 3812
 
+interface ImageryLayers {
+  baseLayer: ImageryLayer
+  nightLayer: ImageryLayer
+}
+
 export interface ImageryResult {
   mode: ImageryMode
   /** City-lights layer, faded by camera height (see fadeNightLights). Absent for Google 3D. */
   nightLayer: ImageryLayer | null
+  /** Daytime imagery layer; its night-side alpha is set per sensor mode. Absent for Google 3D. */
+  baseLayer: ImageryLayer | null
   /** Why higher-priority sources were skipped, for the console. Never contains key material. */
   skipped: string[]
 }
@@ -31,12 +38,19 @@ function readEnv(value: string | undefined): string {
   return (value ?? '').trim()
 }
 
-/** Night-side city lights: hidden on the day side, full strength at night. */
-function addNightLights(viewer: Viewer, layer: ImageryLayer): ImageryLayer {
+/**
+ * Night-side city lights: hidden on the day side, full strength at night. Black Marble tiles
+ * are opaque, so their dark land would cover the base imagery on the whole night side (the
+ * "crescent" look); colorToAlpha drops the near-black so only the lights composite over the
+ * land. Brightness is set per sensor mode (applyNightProfile).
+ */
+function addNightLights(Cesium: CesiumModule, viewer: Viewer, layer: ImageryLayer): ImageryLayer {
   layer.dayAlpha = 0
   layer.nightAlpha = 1
+  layer.colorToAlpha = Cesium.Color.BLACK
+  layer.colorToAlphaThreshold = 0.09
   // Cesium's day/night shading still dims the night side (~0.3×), so lights need real gain.
-  layer.brightness = 3.6
+  layer.brightness = NIGHT_PROFILES.natural.lightsBrightness
   layer.contrast = 1.4
   layer.gamma = 0.85
   viewer.imageryLayers.add(layer)
@@ -66,10 +80,36 @@ export function fadeNightLights(layer: ImageryLayer, cameraHeight: number): void
  * is set: a faint trace of the day imagery under the city lights.
  */
 function styleBaseLayer(layer: ImageryLayer): void {
-  layer.nightAlpha = 0.12
+  layer.nightAlpha = NIGHT_PROFILES.natural.baseNightAlpha
 }
 
-async function useIon(Cesium: CesiumModule, viewer: Viewer, token: string): Promise<ImageryLayer> {
+/**
+ * How the night side renders, per sensor mode:
+ *  - natural: Cesium's lighting as-is (RAW).
+ *  - lifted:  base imagery stays visible at night and city lights are boosted, so the night
+ *             side reads as dark land instead of a void (AEGIS, CRT, NOIR).
+ *  - flat:    no day/night falloff at all; the full disc is lit while city lights still
+ *             appear on the night side (NVG, FLIR).
+ * Values stay strictly off 1.0: a layer value of exactly 1 drops a Cesium shader define and
+ * forces a globe shader recompile on mode switch.
+ */
+export type NightProfile = 'natural' | 'lifted' | 'flat'
+export const NIGHT_PROFILES: Record<NightProfile, { baseNightAlpha: number; lightsBrightness: number; flatten: boolean }> = {
+  natural: { baseNightAlpha: 0.12, lightsBrightness: 3.6, flatten: false },
+  lifted: { baseNightAlpha: 0.75, lightsBrightness: 7, flatten: false },
+  flat: { baseNightAlpha: 0.999, lightsBrightness: 4.5, flatten: true },
+}
+
+export function applyNightProfile(
+  imagery: Pick<ImageryResult, 'baseLayer' | 'nightLayer'>,
+  profile: NightProfile,
+): void {
+  const p = NIGHT_PROFILES[profile]
+  if (imagery.baseLayer) imagery.baseLayer.nightAlpha = p.baseNightAlpha
+  if (imagery.nightLayer) imagery.nightLayer.brightness = p.lightsBrightness
+}
+
+async function useIon(Cesium: CesiumModule, viewer: Viewer, token: string): Promise<ImageryLayers> {
   Cesium.Ion.defaultAccessToken = token
   // Awaiting the providers surfaces a bad token here, so the chain can fall through.
   const [base, night, terrain] = await Promise.all([
@@ -81,7 +121,7 @@ async function useIon(Cesium: CesiumModule, viewer: Viewer, token: string): Prom
   styleBaseLayer(baseLayer)
   viewer.imageryLayers.add(baseLayer)
   viewer.terrainProvider = terrain
-  return addNightLights(viewer, new Cesium.ImageryLayer(night))
+  return { baseLayer, nightLayer: addNightLights(Cesium, viewer, new Cesium.ImageryLayer(night)) }
 }
 
 async function useGoogle3d(Cesium: CesiumModule, viewer: Viewer, key: string): Promise<void> {
@@ -91,7 +131,7 @@ async function useGoogle3d(Cesium: CesiumModule, viewer: Viewer, key: string): P
   viewer.scene.primitives.add(tileset)
 }
 
-function useEsri(Cesium: CesiumModule, viewer: Viewer): ImageryLayer {
+function useEsri(Cesium: CesiumModule, viewer: Viewer): ImageryLayers {
   const base: ImageryProvider = new Cesium.UrlTemplateImageryProvider({
     url: ESRI_TILE_TEMPLATE,
     subdomains: [...ESRI_SUBDOMAINS],
@@ -107,7 +147,7 @@ function useEsri(Cesium: CesiumModule, viewer: Viewer): ImageryLayer {
     maximumLevel: 8,
     credit: new Cesium.Credit('NASA GIBS · VIIRS Black Marble'),
   })
-  return addNightLights(viewer, new Cesium.ImageryLayer(night))
+  return { baseLayer, nightLayer: addNightLights(Cesium, viewer, new Cesium.ImageryLayer(night)) }
 }
 
 /**
@@ -121,8 +161,8 @@ export async function setupImagery(Cesium: CesiumModule, viewer: Viewer): Promis
 
   if (ionToken) {
     try {
-      const nightLayer = await useIon(Cesium, viewer, ionToken)
-      return { mode: 'ion', nightLayer, skipped }
+      const layers = await useIon(Cesium, viewer, ionToken)
+      return { mode: 'ion', ...layers, skipped }
     } catch (error) {
       viewer.imageryLayers.removeAll()
       skipped.push(`ion: ${describeError(error)}`)
@@ -134,7 +174,7 @@ export async function setupImagery(Cesium: CesiumModule, viewer: Viewer): Promis
   if (googleKey) {
     try {
       await useGoogle3d(Cesium, viewer, googleKey)
-      return { mode: 'google3d', nightLayer: null, skipped }
+      return { mode: 'google3d', nightLayer: null, baseLayer: null, skipped }
     } catch (error) {
       viewer.scene.globe.show = true
       skipped.push(`google3d: ${describeError(error)}`)
@@ -143,8 +183,8 @@ export async function setupImagery(Cesium: CesiumModule, viewer: Viewer): Promis
     skipped.push('google3d: no NEXT_PUBLIC_GOOGLE_MAPS_KEY')
   }
 
-  const nightLayer = useEsri(Cesium, viewer)
-  return { mode: 'esri', nightLayer, skipped }
+  const layers = useEsri(Cesium, viewer)
+  return { mode: 'esri', ...layers, skipped }
 }
 
 /** Error text without URLs, which for keyed sources can carry the key in a query string. */

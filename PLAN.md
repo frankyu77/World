@@ -361,6 +361,28 @@ The numbers go into each step's commit message and summary.
   loaded, which the boot sweep can't reproduce. It is the same in RAW and AEGIS (interleaved A/B, 12 flights), so
   the post pass isn't the cause.
 
+## 9c. Night hemisphere fix (after Step 2 review)
+
+- **Why the globe shrank to a crescent at night:**
+  - Cesium dims the night side to 0.3×.
+  - The base imagery fades to 12% at night.
+  - The opaque Black Marble layer covered the whole night side with near-black.
+- **Night lights:** Black Marble now uses `colorToAlpha` (near-black → transparent), so only the lights composite
+  over the land.
+- **Per-mode night profiles** (`NIGHT_PROFILES` in imagery.ts):
+  - **lifted** (AEGIS, CRT, NOIR): base imagery stays visible at night and city lights are boosted. The
+    post-process adds a globe-only dark-blue lift.
+  - **flat** (NVG, FLIR): globe lighting fade and night-atmosphere fade are pushed past any camera distance.
+    That's uniforms only, so the full disc is lit while the night blend still places city lights. NVG gets a
+    wide bloom ring for point lights.
+  - **natural** (RAW): unchanged.
+  - Layer values never hit exactly 1.0 and `enableLighting` is never toggled, so switching modes compiles nothing.
+- **Silhouette rim:** a depth-based rim (globe vs cleared depth) gives a faint cyan halo in AEGIS and
+  palette-matched halos in CRT/NOIR, whichever side the sun is on.
+- **Dotted limb:** caused by Cesium's sky-atmosphere shell. Skirts, tessellation, MSAA 4 and per-fragment
+  atmosphere all kept the dots; hiding the shell removed them. The shell now fades out between 800 and 1,500 km
+  and is hidden above that, so the horizon sky remains near the ground.
+
 ## 10. Risks and open questions
 
 1. **Boot sequence (decided).** It stays opaque; the globe rotates underneath and is revealed on fade.

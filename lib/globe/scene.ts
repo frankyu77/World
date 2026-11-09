@@ -1,4 +1,4 @@
-import type { Viewer } from 'cesium'
+import type { Scene, Viewer } from 'cesium'
 import type { CesiumModule } from './cesium-env'
 import { HOME_HEIGHT, HOME_LATITUDE } from './camera'
 import { createStarfield } from './starfield'
@@ -70,14 +70,11 @@ function configureScene(Cesium: CesiumModule, viewer: Viewer): void {
   globe.atmosphereLightIntensity = 8
   globe.atmosphereBrightnessShift = -0.15
   globe.atmosphereSaturationShift = -0.1
-  globe.lightingFadeOutDistance = 6_500_000
-  globe.lightingFadeInDistance = 9_000_000
-  globe.nightFadeOutDistance = 6_500_000
-  globe.nightFadeInDistance = 9_000_000
+  setFlatLighting(scene, false)
 
   if (scene.skyAtmosphere) {
     scene.skyAtmosphere.show = true
-    scene.skyAtmosphere.brightnessShift = -0.25
+    scene.skyAtmosphere.brightnessShift = SKY_BRIGHTNESS
     scene.skyAtmosphere.saturationShift = -0.15
     scene.skyAtmosphere.hueShift = 0.02
   }
@@ -91,6 +88,51 @@ function configureScene(Cesium: CesiumModule, viewer: Viewer): void {
   const controller = scene.screenSpaceCameraController
   controller.minimumZoomDistance = 150
   controller.maximumZoomDistance = 45_000_000
+}
+
+const LIGHTING_FADE_OUT = 6_500_000
+const LIGHTING_FADE_IN = 9_000_000
+
+/**
+ * Flat lighting removes the day/night falloff (NVG, FLIR show the whole disc) without
+ * turning `enableLighting` off: that would drop a shader define (recompile on every mode
+ * switch) and the night-side blend that places city lights. Only uniforms change here:
+ *  - globe lighting fade beyond any camera distance -> surface fully lit everywhere;
+ *  - night-fade distances inverted below any camera distance -> ground atmosphere never
+ *    darkens toward night (GlobeFS: sunlit = (d - in) / (out - in), clamped to 1).
+ */
+export function setFlatLighting(scene: Scene, flat: boolean): void {
+  const globe = scene.globe
+  if (flat) {
+    globe.lightingFadeOutDistance = 1e10
+    globe.lightingFadeInDistance = 1.1e10
+    globe.nightFadeOutDistance = 2
+    globe.nightFadeInDistance = 1
+  } else {
+    globe.lightingFadeOutDistance = LIGHTING_FADE_OUT
+    globe.lightingFadeInDistance = LIGHTING_FADE_IN
+    globe.nightFadeOutDistance = LIGHTING_FADE_OUT
+    globe.nightFadeInDistance = LIGHTING_FADE_IN
+  }
+}
+
+const SKY_FADE_START = 800_000
+const SKY_HIDE_ABOVE = 1_500_000
+const SKY_BRIGHTNESS = -0.25
+
+/**
+ * Cesium's sky-atmosphere shell renders as a thin dotted ring on the globe limb from orbit
+ * (isolated by toggling: skirts, tessellation, MSAA 4 and per-fragment atmosphere all kept
+ * the dots; hiding the shell removed them). From orbit the silhouette comes from the
+ * post-process rim instead; near the ground the shell still draws the horizon sky. It fades
+ * out through its brightness uniform between 800 and 1,500 km, then hides.
+ */
+export function updateSkyAtmosphere(scene: Scene, cameraHeight: number): void {
+  const sky = scene.skyAtmosphere
+  if (!sky) return
+  const t = Math.min(1, Math.max(0, (cameraHeight - SKY_FADE_START) / (SKY_HIDE_ABOVE - SKY_FADE_START)))
+  sky.show = t < 1
+  sky.brightnessShift = SKY_BRIGHTNESS - t * (1 + SKY_BRIGHTNESS)
 }
 
 const ROTATION_DEG_PER_SEC = 2
