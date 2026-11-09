@@ -60,12 +60,12 @@ export function fadeNightLights(layer: ImageryLayer, cameraHeight: number): void
   layer.alpha = 0.001 + eased * 0.998
 }
 
-/** Darken and cool the daytime base so the HUD stays the focal point. */
+/**
+ * The base layer stays untouched so the RAW sensor mode shows true imagery; the HUD look
+ * comes from the AEGIS post-process grade instead (lib/globe/sensors). Only the night side
+ * is set: a faint trace of the day imagery under the city lights.
+ */
 function styleBaseLayer(layer: ImageryLayer): void {
-  layer.brightness = 0.78
-  layer.contrast = 1.12
-  layer.saturation = 0.7
-  layer.gamma = 1.05
   layer.nightAlpha = 0.12
 }
 

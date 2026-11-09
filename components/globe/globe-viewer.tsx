@@ -7,6 +7,7 @@ import { createViewer, startIdleRotation } from '@/lib/globe/scene'
 import { fadeNightLights, setupImagery } from '@/lib/globe/imagery'
 import { warmUpShaders } from '@/lib/globe/warmup'
 import { prefetchDestinationTiles } from '@/lib/globe/prefetch'
+import { createSensorController } from '@/lib/globe/sensors/controller'
 import { flyHome, flyLevel, flyToCity, readCameraState, readViewBounds } from '@/lib/globe/camera'
 import type { CameraState, FrameListener, GlobeHandle, ImageryMode, ScreenPoint, ViewBounds } from '@/lib/globe/types'
 
@@ -85,6 +86,8 @@ export default function GlobeViewer({
       const { scene, camera } = v
       const rotation = startIdleRotation(Cesium, v)
       teardown.push(() => rotation.destroy())
+      const sensors = createSensorController(Cesium, scene)
+      teardown.push(() => sensors.destroy())
 
       // Camera readouts: throttled while moving, plus a settled event with bounds.
       let lastEmit = 0
@@ -220,6 +223,9 @@ export default function GlobeViewer({
           const visible = win.x >= -50 && win.y >= -50 && win.x <= scene.canvas.clientWidth + 50 && win.y <= scene.canvas.clientHeight + 50
           return { x: win.x, y: win.y, visible }
         },
+        setSensor(mode) {
+          sensors.setMode(mode)
+        },
         onFrame(listener) {
           frameListeners.add(listener)
           return () => frameListeners.delete(listener)
@@ -252,14 +258,27 @@ export default function GlobeViewer({
       if (concealedRef.current) {
         warming = true
         rotation.setFlightActive(true)
-        const finish = warmUpShaders(Cesium, v, () => {
+        const done = () => {
           warming = false
           cancelWarmUp.current = null
           rotation.setFlightActive(false, false)
           emitSettled()
+        }
+        // Height sweep (globe variants), then each sensor stage, all behind the boot overlay.
+        let cancelSensors: (() => void) | null = null
+        const cancelSweep = warmUpShaders(Cesium, v, () => {
+          if (!concealedRef.current) {
+            done()
+            return
+          }
+          cancelSensors = sensors.warmUp(done)
         })
-        cancelWarmUp.current = finish
-        teardown.push(finish)
+        const cancelAll = () => {
+          cancelSweep()
+          cancelSensors?.()
+        }
+        cancelWarmUp.current = cancelAll
+        teardown.push(cancelAll)
       }
     })()
 

@@ -1,3 +1,5 @@
+import type { SensorMode } from './sensors/modes'
+
 /** Geographic bounds of the visible globe area, in degrees. `west > east` means the view crosses the antimeridian. */
 export interface ViewBounds {
   north: number
@@ -37,6 +39,8 @@ export interface ScreenPoint {
 
 export type FrameListener = () => void
 
+export type { SensorMode }
+
 /** Imperative API the globe exposes to the orchestrator via ref. */
 export interface GlobeHandle {
   /** Cinematic flight that ends pitched toward the point; `onArrive` fires when the flight completes. */
@@ -47,6 +51,8 @@ export interface GlobeHandle {
   levelView(): void
   /** Project a ground point to viewport pixels; `visible` is false when behind the globe or off-screen. */
   project(point: GeoPoint, heightMeters?: number): ScreenPoint
+  /** Switch the post-process sensor grade (AEGIS, NVG, FLIR, CRT, NOIR, RAW). */
+  setSensor(mode: SensorMode): void
   /** Called after every rendered frame. Returns an unsubscribe function. */
   onFrame(listener: FrameListener): () => void
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { SearchBar } from './search-bar'
 import { CityInfoPanel } from './city-info-panel'
@@ -12,9 +12,11 @@ import { HoloBeacon } from './holo/holo-beacon'
 import { MapProjectionFX, AtmosphereFX } from './holographic-overlays'
 import { ScreenAnchors, type ScreenAnchorItem } from './globe/screen-anchors'
 import { CreditsLine } from './globe/credits-line'
+import { SensorSelector } from './globe/sensor-selector'
 import { useViewportData } from '@/hooks/use-viewport-data'
 import { buildCredits } from '@/lib/globe/credits'
 import type { CameraState, GlobeHandle, ImageryMode, ViewBounds } from '@/lib/globe/types'
+import { DEFAULT_SENSOR_MODE, isSensorMode, sensorModeForKey, type SensorMode } from '@/lib/globe/sensors/modes'
 
 // Cesium touches window/WebGL at import time: client-only, never server-rendered.
 const GlobeViewer = dynamic(() => import('./globe/globe-viewer'), { ssr: false })
@@ -26,6 +28,14 @@ export interface SelectedCity {
   longitude: number
   country?: string
   state?: string
+}
+
+const SENSOR_STORAGE_KEY = 'aegis.sensorMode'
+
+/** True when a key press should go to a text field, not a global shortcut. */
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT'
 }
 
 const INITIAL_CAMERA: CameraState = { latitude: 20, longitude: 0, height: 20_000_000, zoom: 2.8 }
@@ -41,6 +51,38 @@ export function JarvisMap() {
   const [showWeather, setShowWeather] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [isBooted, setIsBooted] = useState(false)
+  const [sensor, setSensor] = useState<SensorMode>(DEFAULT_SENSOR_MODE)
+
+  // Restore the last sensor mode after mount (localStorage isn't available during SSR, and
+  // reading it in the initial state would mismatch hydration). Storage can throw: ignore.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(SENSOR_STORAGE_KEY)
+      if (isSensorMode(saved)) setSensor(saved)
+    } catch {
+      // Private mode / blocked storage: keep the default.
+    }
+  }, [])
+
+  useEffect(() => {
+    globe?.setSensor(sensor)
+    try {
+      window.localStorage.setItem(SENSOR_STORAGE_KEY, sensor)
+    } catch {
+      // Not persisted; the mode still applies for this session.
+    }
+  }, [globe, sensor])
+
+  // Keys 1-6 pick a sensor mode, except while typing or with modifiers held.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target)) return
+      const mode = sensorModeForKey(e.key)
+      if (mode) setSensor(mode)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // Bounds refresh only when the camera settles, so viewport data doesn't churn mid-flight.
   const handleViewSettled = useCallback((next: ViewBounds | null, state: CameraState) => {
@@ -152,6 +194,8 @@ export function JarvisMap() {
         tracking={0}
         rightColumnHidden={isPanelOpen}
       />
+
+      <SensorSelector mode={sensor} onChange={setSensor} hidden={isPanelOpen} />
 
       <SearchBar onCitySelect={handleCitySelect} isLoading={isLoading} />
 

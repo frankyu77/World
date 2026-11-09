@@ -339,6 +339,28 @@ The numbers go into each step's commit message and summary.
 - **`?perf` probe.** The viewer exposes frame timestamps and per-frame CPU time on `window.__aegisPerf`; always
   in dev, and in production only with `?perf` in the URL.
 
+## 9b. Step 2: what changed from this plan
+
+- **Six modes, not five:** `1 AEGIS`, `2 NVG`, `3 FLIR`, `4 CRT`, `5 NOIR`, `6 RAW`.
+  - AEGIS is the default command grade: subtle darken, slight desaturation, cool cyan balance, a faint teal lift in
+    the blacks so space matches the HUD background, and a light vignette.
+  - RAW runs no stage and shows the imagery untouched. To make that true, the base imagery layer lost its
+    brightness/contrast/saturation styling; that look now lives in AEGIS.
+- **Shader warm-up.** Every stage is created once and kept disabled. All stages are compiled behind the boot
+  overlay, right after the globe height sweep. First-time mode switches measured a worst frame of ≤ 19 ms.
+- **Tuning.** NVG intensifier gain was lowered with an S-curve added (gain 3.2 blew sunlit cities out to flat
+  green). FLIR's temperature range was widened, so ordinary ground reads cool and only bright surfaces read hot.
+- **Shared code.** `time` is a uniform *function* Cesium evaluates per frame, so no `preRender` hook is needed.
+  Shaders use `czm_viewport` for pixel size.
+- **Selector placement.** It sits in the right column under INTELLIGENCE and slides out with it while the city
+  panel is open.
+- **Mode handling.** The mode persists in `localStorage` (read after mount, try/catch). Keys are ignored while
+  typing, with modifiers held, and on key repeat.
+- **Known residual: a 40–57 ms frame around 125 km in city flights.** Cesium compiles about 12 globe-surface
+  shader variants there, keyed to how many imagery textures each tile carries. That depends on which tiles have
+  loaded, which the boot sweep can't reproduce. It is the same in RAW and AEGIS (interleaved A/B, 12 flights), so
+  the post pass isn't the cause.
+
 ## 10. Risks and open questions
 
 1. **Boot sequence (decided).** It stays opaque; the globe rotates underneath and is revealed on fade.
