@@ -11,9 +11,6 @@ importers:
       '@base-ui/react':
         specifier: ^1.5.0
         version: 1.5.0(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@types/mapbox-gl':
-        specifier: ^3.5.0
-        version: 3.5.0
       '@vercel/analytics':
         specifier: 1.6.1
         version: 1.6.1(next@16.2.6(@babel/core@7.29.7)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)
@@ -744,10 +741,6 @@ packages:
 
   '@types/geojson@7946.0.16':
     resolution: {integrity: sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==}
-
-  '@types/mapbox-gl@3.5.0':
-    resolution: {integrity: sha512-3wVAUTC6q1UKatLP9YxFBnGJWi3neJUF9OKeyRdUf/BsYjZAP35xmZkL4zogVJbO3vdExuSVYCAkzUXjpjdhOg==}
-    deprecated: This is a stub types definition. mapbox-gl provides its own type definitions, so you do not need this installed.
 
   '@types/node@24.10.4':
     resolution: {integrity: sha512-vnDVpYPMzs4wunl27jHrfmwojOGKya0xyM3sH+UE5iv5uPS6vX7UIoh6m+vQc5LGBq52HBKPIn/zcSZVzeDEZg==}
@@ -2724,7 +2717,8 @@ snapshots:
 
   '@mapbox/jsonlint-lines-primitives@2.0.2': {}
 
-  '@mapbox/mapbox-gl-supported@3.0.0': {}
+  '@mapbox/mapbox-gl-supported@3.0.0':
+    optional: true
 
   '@mapbox/point-geometry@1.1.0': {}
 
@@ -2952,18 +2946,16 @@ snapshots:
   '@types/geojson-vt@3.2.5':
     dependencies:
       '@types/geojson': 7946.0.16
+    optional: true
 
   '@types/geojson@7946.0.16': {}
-
-  '@types/mapbox-gl@3.5.0':
-    dependencies:
-      mapbox-gl: 3.24.0
 
   '@types/node@24.10.4':
     dependencies:
       undici-types: 7.16.0
 
-  '@types/pbf@3.0.5': {}
+  '@types/pbf@3.0.5':
+    optional: true
 
   '@types/react-dom@19.2.3(@types/react@19.2.14)':
     dependencies:
@@ -3108,7 +3100,8 @@ snapshots:
 
   chalk@5.6.2: {}
 
-  cheap-ruler@4.0.0: {}
+  cheap-ruler@4.0.0:
+    optional: true
 
   class-variance-authority@0.7.1:
     dependencies:
@@ -3178,7 +3171,8 @@ snapshots:
       shebang-command: 2.0.0
       which: 2.0.2
 
-  csscolorparser@1.0.3: {}
+  csscolorparser@1.0.3:
+    optional: true
 
   cssesc@3.0.0: {}
 
@@ -3436,7 +3430,8 @@ snapshots:
 
   gensync@1.0.0-beta.2: {}
 
-  geojson-vt@4.0.3: {}
+  geojson-vt@4.0.3:
+    optional: true
 
   get-caller-file@2.0.5: {}
 
@@ -3720,6 +3715,7 @@ snapshots:
       quickselect: 3.0.0
       supercluster: 8.0.1
       tinyqueue: 3.0.0
+    optional: true
 
   maplibre-gl@5.24.0:
     dependencies:
@@ -3748,6 +3744,7 @@ snapshots:
       robust-predicates: 2.0.4
       splaytree: 0.1.4
       tinyqueue: 3.0.0
+    optional: true
 
   math-intrinsics@1.1.0: {}
 
@@ -4046,7 +4043,8 @@ snapshots:
 
   reusify@1.1.0: {}
 
-  robust-predicates@2.0.4: {}
+  robust-predicates@2.0.4:
+    optional: true
 
   router@2.2.0:
     dependencies:
@@ -4243,7 +4241,8 @@ snapshots:
 
   source-map@0.6.1: {}
 
-  splaytree@0.1.4: {}
+  splaytree@0.1.4:
+    optional: true
 
   split-string@3.1.0:
     dependencies:
