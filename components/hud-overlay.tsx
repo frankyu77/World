@@ -11,7 +11,10 @@ interface HudOverlayProps {
   latitude: number
   longitude: number
   isLoading: boolean
-  nodeCount: number
+  /** Live objects currently on screen across enabled layers. */
+  activeNodes: number
+  /** Moving tracks (aircraft + satellites) currently on screen. */
+  tracking: number
 }
 
 function formatTime(date: Date) {
@@ -36,7 +39,7 @@ function zoomTier(zoom: number) {
  *   bottom-center → zoom / global view
  *   bottom-right → signal strength
  */
-export function HudOverlay({ zoom, latitude, longitude, isLoading, nodeCount }: HudOverlayProps) {
+export function HudOverlay({ zoom, latitude, longitude, isLoading, activeNodes, tracking }: HudOverlayProps) {
   const [now, setNow] = useState<Date | null>(null)
   const [signal, setSignal] = useState(96)
 
@@ -51,7 +54,6 @@ export function HudOverlay({ zoom, latitude, longitude, isLoading, nodeCount }: 
   }, [])
 
   const currentTime = now ? formatTime(now) : '--:--:--'
-  const tracking = Math.max(0, Math.round(nodeCount * 0.4))
 
   return (
     <>
@@ -87,7 +89,7 @@ export function HudOverlay({ zoom, latitude, longitude, isLoading, nodeCount }: 
             <span className="holo-label text-[10px]">INTELLIGENCE</span>
           </div>
           <div className="mt-3 space-y-3">
-            <Metric label="Active Nodes" value={nodeCount} />
+            <Metric label="Active Nodes" value={activeNodes} />
             <Metric label="Tracking" value={tracking} sub="targets" />
           </div>
         </HoloPanel>

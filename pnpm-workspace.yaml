@@ -1,3 +1,10 @@
 allowBuilds:
   msw: false
   sharp: true
+
+# cesium@1.146.0 declares ^ ranges on its sub-packages, which float to the
+# 1.147 builds (engine 26.5.0 dropped exports 1.146 re-exports). Pin the set
+# released with 1.146.0.
+overrides:
+  '@cesium/engine': 26.4.0
+  '@cesium/widgets': 16.3.0

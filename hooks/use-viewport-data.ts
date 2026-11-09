@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import useSWR from 'swr'
-import { zoomThresholds } from '@/lib/map-style'
+import { boundsContain, zoomThresholds } from '@/lib/globe/camera'
 
 interface Bounds {
   north: number
@@ -57,12 +57,8 @@ export function useViewportData(bounds: Bounds | null, zoom: number) {
   const visibleCityIds = useMemo(() => {
     if (!bounds || zoom < zoomThresholds.noFetch) return ''
     
-    const visible = majorCities.filter(city => 
-      city.latitude >= bounds.south &&
-      city.latitude <= bounds.north &&
-      city.longitude >= bounds.west &&
-      city.longitude <= bounds.east
-    )
+    // boundsContain handles views that cross the antimeridian (west > east).
+    const visible = majorCities.filter(city => boundsContain(bounds, city))
     return visible.map(c => c.id).join(',')
   }, [boundsKey, zoom, bounds])
 

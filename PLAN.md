@@ -311,6 +311,34 @@ drives the installed Google Chrome with the real GPU (`--use-angle=metal`, not h
 The same script takes the per-step screenshots of `localhost:3000`, which I open and inspect before committing.
 The numbers go into each step's commit message and summary.
 
+## 9a. Step 1: what changed from this plan
+
+- **Cesium is served, not bundled** (replaces §4.3 and §4.5). Turbopack's production minifier turns a WebAssembly
+  binary that Cesium inlines as a string into a template literal with an illegal octal escape (`\0` + digit). The
+  production chunk failed to parse and the globe never loaded; dev wasn't affected because it isn't minified.
+  - The fix loads Cesium's own prebuilt `Build/Cesium/Cesium.js` (plus `widgets.css`) from `/cesium/` with a
+    `<script>` tag. The copy script now copies it alongside the other static assets.
+  - Code still gets full types through `import type`.
+  - Side benefits: production app JS fell to about 0.9 MB, and builds compile in about 1 s.
+- **Cesium sub-packages pinned.** `cesium@1.146.0` declares `^` ranges, so `@cesium/engine` floated to the 1.147
+  build, which drops exports 1.146 still re-exports. `pnpm-workspace.yaml` pins `@cesium/engine` 26.4.0 and
+  `@cesium/widgets` 16.3.0, the set released with 1.146.0. `protobufjs` did not need a build approval.
+- **`@types/mapbox-gl` was removed in the type-check commit,** not Step 1. It was the only type error and is unused.
+- **Night lights fade with camera height** (fully gone below 800 km). Close in, Cesium fades globe lighting out,
+  and a magnified Black Marble tile washed the city view out to white.
+- **Procedural starfield** replaces Cesium's default Tycho skybox, which read as static noise behind the HUD.
+- **Start view straddles the terminator:** about 70° east of the subsolar point, so the reveal always shows day
+  and night.
+- **Shader warm-up behind the boot overlay.** Cesium compiles globe shader variants as the camera crosses height
+  bands. On Metal that stalled city flights by 100–380 ms around 125 km. While boot covers the globe, the camera
+  sweeps 9,000 km → 9 km, one step per frame, then restores the view. Worst flight frame is now about 45 ms
+  (Tokyo); the other cities show none.
+- **Settled-view events.** `moveEnd` doesn't fire while idle rotation runs and proved unreliable after scripted
+  flights. Bounds now also refresh on a 1.5 s throttle while moving and a 250 ms trailing debounce. Home and level
+  flights pause rotation like city flights.
+- **`?perf` probe.** The viewer exposes frame timestamps and per-frame CPU time on `window.__aegisPerf`; always
+  in dev, and in production only with `?perf` in the URL.
+
 ## 10. Risks and open questions
 
 1. **Boot sequence (decided).** It stays opaque; the globe rotates underneath and is revealed on fade.

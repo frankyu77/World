@@ -1,23 +1,19 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { CloudSun, Car, RotateCcw, type LucideIcon } from 'lucide-react'
+import { CloudSun, RotateCcw, type LucideIcon } from 'lucide-react'
 import { HoloPanel } from './holo/holo-panel'
 import { cn } from '@/lib/utils'
 
 interface MapControlsProps {
-  showTraffic: boolean
   showWeather: boolean
-  onToggleTraffic: () => void
   onToggleWeather: () => void
   onResetView: () => void
 }
 
-/** Bottom-left layer controls: traffic + weather toggles and recenter. */
+/** Bottom-left layer controls: layer toggles and recenter. */
 export function MapControls({
-  showTraffic,
   showWeather,
-  onToggleTraffic,
   onToggleWeather,
   onResetView,
 }: MapControlsProps) {
@@ -31,7 +27,6 @@ export function MapControls({
       <HoloPanel corners={false} className="p-4">
         <span className="holo-label text-[10px]">LAYERS</span>
         <div className="mt-3 space-y-2">
-          <ControlButton icon={Car} label="Traffic" isActive={showTraffic} onClick={onToggleTraffic} />
           <ControlButton icon={CloudSun} label="Weather" isActive={showWeather} onClick={onToggleWeather} />
         </div>
         <div className="my-3 h-px w-full bg-jarvis-cyan/15" />
