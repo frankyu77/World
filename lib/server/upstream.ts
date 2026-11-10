@@ -5,7 +5,7 @@ import 'server-only'
  * cache can back off. Messages never include the request URL: some upstreams (NASA FIRMS)
  * put the API key in the path, and error text can end up in logs or responses.
  */
-export const USER_AGENT = 'AEGIS/0.1 (globe prototype)'
+export const USER_AGENT = 'AEGIS/0.1 (https://github.com/frankyu77)'
 
 export class UpstreamError extends Error {
   constructor(

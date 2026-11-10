@@ -18,7 +18,14 @@ interface TargetCardProps {
 /**
  * Metadata for the tracked (or inspected) object, bottom-center above the zoom pill, in the
  * same HoloPanel style and label/value typography as the INTELLIGENCE panel. Updated ~4 Hz.
+ *
+ * Height-aware: the locked target sits at screen center, so the card must stay in the lower
+ * half. Full card (3x3 fields, ~213 px) from 760 px tall; below that a compact strip (header +
+ * 4 key fields, ~125 px), which keeps clear of the reticle and of the search results list
+ * (z-50, which would otherwise cover the card's header in short windows) down to ~560 px.
  */
+// Tailwind only generates classes it finds literally in source, so the short-window variant
+// `[@media(max-height:759px)]:` is written out in full in each className below.
 export function TargetCard({ info, onClose }: TargetCardProps) {
   return (
     <AnimatePresence>
@@ -33,11 +40,14 @@ export function TargetCard({ info, onClose }: TargetCardProps) {
           transition={motionPresets.fadeUp.transition}
           className="fixed bottom-[76px] left-1/2 z-30 -translate-x-1/2"
         >
-          <HoloPanel active className="w-[360px] p-4">
+          <HoloPanel active className="w-[min(360px,calc(100vw-32px))] p-4 [@media(max-height:759px)]:p-3">
             <Header info={info} onClose={onClose} />
-            <div className="mt-3 grid grid-cols-3 gap-x-4 gap-y-2.5">
-              {rows(info).map(([label, value, unit]) => (
-                <Field key={label} label={label} value={value} unit={unit} />
+            <div className="mt-3 grid grid-cols-3 gap-x-4 gap-y-2.5 [@media(max-height:759px)]:mt-2 [@media(max-height:759px)]:grid-cols-4 [@media(max-height:759px)]:gap-x-3">
+              {rows(info).map(([label, value, unit], i) => (
+                // Compact strip keeps the first four (most important) fields.
+                <div key={label} className={i >= 4 ? '[@media(max-height:759px)]:hidden' : undefined}>
+                  <Field label={label} value={value} unit={unit} />
+                </div>
               ))}
             </div>
           </HoloPanel>

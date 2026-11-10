@@ -14,6 +14,8 @@ interface PointSpec {
   size: number
   color: string
   alpha: number
+  /** Dark outline ring; off for small markers, where it mostly adds visual weight. */
+  outline: boolean
 }
 
 class StaticPointLayer<Row> {
@@ -62,8 +64,8 @@ class StaticPointLayer<Row> {
         pixelSize: s.size,
         color: C.Color.fromCssColorString(s.color).withAlpha(s.alpha),
         outlineColor: C.Color.BLACK.withAlpha(0.5),
-        outlineWidth: 1,
-        scaleByDistance: new C.NearFarScalar(1e5, 1.4, 2e7, 0.8),
+        outlineWidth: s.outline ? 1 : 0,
+        scaleByDistance: new C.NearFarScalar(1e5, 1.3, 2e7, 0.7),
         id,
       })
     })
@@ -86,18 +88,26 @@ class StaticPointLayer<Row> {
   }
 }
 
-/** USGS quakes: size by magnitude, colour by age (red < 1 h, amber < 6 h, then yellow). */
+/**
+ * USGS quakes. The past-day feed is mostly M1-M3 micro-quakes (~200 a day), which dominated the
+ * global view at the old sizes. Now: small, translucent markers below M5 (3-6 px, 45-60%
+ * alpha); M5+ step up sharply (10 px at M5, +4 px per magnitude) and go opaque with an outline.
+ * Colour by age: red < 1 h, amber < 6 h, then yellow.
+ */
 export class EarthquakesLayer extends StaticPointLayer<QuakeRow> {
   constructor(Cesium: CesiumModule, scene: Scene) {
     super(Cesium, scene, 'earthquakes', 2_000, (q, now) => {
+      const mag = q[4]
       const ageH = (now - q[5]) / 3_600_000
+      const major = mag >= 5
       return {
         key: q[0],
         lat: q[1],
         lon: q[2],
-        size: Math.max(4, 4 + q[4] * 2.4),
+        size: major ? 10 + (mag - 5) * 4 : 3 + Math.max(0, mag) * 0.6,
         color: ageH < 1 ? '#ff4d5e' : ageH < 6 ? '#ffb020' : '#ffe27a',
-        alpha: ageH < 6 ? 0.95 : 0.7,
+        alpha: major ? 0.95 : ageH < 6 ? 0.6 : 0.45,
+        outline: major,
       }
     })
   }
@@ -113,6 +123,7 @@ export class FiresLayer extends StaticPointLayer<FireRow> {
       size: f[3] > 50 ? 5 : 3.5,
       color: f[3] > 50 ? '#ff7a1a' : '#ffae42',
       alpha: 0.9,
+      outline: true,
     }))
   }
 }

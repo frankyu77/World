@@ -116,7 +116,8 @@ export function HudOverlay({ zoom, latitude, longitude, isLoading, activeNodes, 
       </div>
 
       {/* ── BOTTOM-RIGHT · Signal strength ─────────────────────────── */}
-      <motion.div {...rightColumn} className="fixed bottom-36 right-6 z-20 pointer-events-none hidden lg:block">
+      {/* Hidden in short windows (< 760 px), where it would run into SENSOR; its value is decorative. */}
+      <motion.div {...rightColumn} className="fixed bottom-36 right-6 z-20 pointer-events-none hidden lg:block [@media(max-height:759px)]:!hidden">
         <HoloPanel {...motionPresets.fadeRight} className="w-[168px] p-4">
           <div className="flex items-center gap-2">
             <Radio className="h-3.5 w-3.5 text-jarvis-cyan" />
