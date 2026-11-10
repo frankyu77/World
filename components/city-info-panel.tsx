@@ -2,12 +2,11 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  X, Clock, Users, Wind, Droplets, Eye, MapPin, Car, Cloud, Sun, CloudRain,
+  X, Clock, Users, Wind, Droplets, Eye, MapPin, Cloud, Sun, CloudRain,
   CloudSnow, CloudLightning, CloudFog, type LucideIcon,
 } from 'lucide-react'
 import { HoloPanel } from './holo/holo-panel'
 import { useCityData } from '@/hooks/use-city-data'
-import { intensityColor } from '@/lib/holo'
 import type { SelectedCity } from './jarvis-map'
 
 interface CityInfoPanelProps {
@@ -42,12 +41,6 @@ function getAqiLabel(aqi: number) {
   if (aqi <= 200) return 'Unhealthy'
   if (aqi <= 300) return 'Very Unhealthy'
   return 'Hazardous'
-}
-
-function getTrafficStatus(level: number) {
-  if (level < 0.4) return { label: 'Light Traffic', color: 'text-jarvis-green' }
-  if (level < 0.7) return { label: 'Moderate Traffic', color: 'text-jarvis-amber' }
-  return { label: 'Heavy Traffic', color: 'text-jarvis-red' }
 }
 
 export function CityInfoPanel({ city, isOpen, onClose }: CityInfoPanelProps) {
@@ -131,26 +124,17 @@ export function CityInfoPanel({ city, isOpen, onClose }: CityInfoPanelProps) {
                       </div>
                     </DataSection>
 
-                    <DataSection title="TRAFFIC STATUS" icon={Car}>
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="h-3 w-3 animate-pulse rounded-full"
-                          style={{ background: intensityColor(data.traffic.level), boxShadow: '0 0 8px currentColor' }}
-                        />
-                        <span className={`font-heading font-semibold tracking-wide ${getTrafficStatus(data.traffic.level).color}`}>
-                          {getTrafficStatus(data.traffic.level).label}
-                        </span>
-                      </div>
-                      <p className="mt-2 font-mono text-[11px] text-muted-foreground">
-                        Average delay: {Math.round(data.traffic.delay)} min
-                      </p>
-                    </DataSection>
-
-                    <DataSection title="POPULATION" icon={Users}>
-                      <div className="font-mono text-2xl text-jarvis-cyan glow-text">
-                        {data.population?.toLocaleString() || 'N/A'}
-                      </div>
-                    </DataSection>
+                    {data.population && (
+                      <DataSection title="POPULATION" icon={Users}>
+                        <div className="font-mono text-2xl text-jarvis-cyan glow-text">
+                          {data.population.value.toLocaleString('en-US')}
+                        </div>
+                        <p className="mt-1 font-mono text-[10px] uppercase text-muted-foreground">
+                          {data.population.source}
+                          {data.population.year ? ` · ${data.population.year}` : ''}
+                        </p>
+                      </DataSection>
+                    )}
 
                     {data.pois && data.pois.length > 0 && (
                       <DataSection title="POINTS OF INTEREST" icon={MapPin}>
@@ -214,7 +198,7 @@ export function CityInfoPanel({ city, isOpen, onClose }: CityInfoPanelProps) {
                       <MiniStat label="LOCAL TIME" value={data.localTime} />
                       <MiniStat label="TEMP" value={`${Math.round(data.weather.temperature)}°C`} />
                       <MiniStat label="AIR QUALITY" value={String(data.airQuality.aqi)} valueClass={getAqiColor(data.airQuality.aqi)} />
-                      <MiniStat label="POPULATION" value={data.population?.toLocaleString() || 'N/A'} />
+                      {data.population && <MiniStat label="POPULATION" value={data.population.value.toLocaleString('en-US')} />}
                     </div>
                   </>
                 ) : null}
@@ -262,15 +246,35 @@ function WeatherStat({ icon: Icon, label, value, unit }: { icon: LucideIcon; lab
   )
 }
 
+/**
+ * Skeleton while /api/city loads: the real section headers (same icons and labels as the
+ * loaded dossier) over shimmering placeholder rows, so the panel reads as "acquiring", not empty.
+ */
+const SKELETON_SECTIONS: Array<{ title: string; icon: LucideIcon; rows: string[] }> = [
+  { title: 'LOCAL TIME', icon: Clock, rows: ['h-9 w-28', 'h-3 w-24'] },
+  { title: 'ATMOSPHERIC', icon: Cloud, rows: ['h-10 w-40', 'h-3 w-full'] },
+  { title: 'AIR QUALITY', icon: Wind, rows: ['h-8 w-32'] },
+  { title: 'POPULATION', icon: Users, rows: ['h-7 w-36'] },
+  { title: 'POINTS OF INTEREST', icon: MapPin, rows: ['h-3 w-48', 'h-3 w-40', 'h-3 w-44'] },
+]
+
 function LoadingState() {
   return (
-    <div className="space-y-4">
-      {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="animate-pulse">
-          <div className="mb-2 h-3 w-24 rounded bg-jarvis-cyan/10" />
-          <div className="h-8 w-32 rounded bg-jarvis-cyan/10" />
-        </div>
+    <div className="space-y-6" aria-busy="true" aria-label="Loading city dossier">
+      {SKELETON_SECTIONS.map(({ title, icon, rows }, i) => (
+        <DataSection key={title} title={title} icon={icon}>
+          <div className="space-y-2">
+            {rows.map((size, j) => (
+              <div
+                key={j}
+                className={`${size} animate-pulse rounded bg-jarvis-cyan/15`}
+                style={{ animationDelay: `${(i * 2 + j) * 90}ms` }}
+              />
+            ))}
+          </div>
+        </DataSection>
       ))}
+      <p className="holo-label text-center text-[9px] text-jarvis-cyan/70">ACQUIRING DOSSIER…</p>
     </div>
   )
 }

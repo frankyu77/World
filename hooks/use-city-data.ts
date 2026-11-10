@@ -19,11 +19,6 @@ interface AirQualityData {
   pm10: number
 }
 
-interface TrafficData {
-  level: number  // 0-1, higher = more traffic
-  delay: number  // average delay in minutes
-}
-
 interface POI {
   name: string
   type: string
@@ -35,8 +30,8 @@ interface CityDataResponse {
   timezone: string
   weather: WeatherData
   airQuality: AirQualityData
-  traffic: TrafficData
-  population: number | null
+  /** Wikidata P1082 or the OSM population tag; null when no keyless source has a figure. */
+  population: { value: number; year: number | null; source: 'Wikidata' | 'OpenStreetMap' } | null
   pois: POI[]
 }
 
@@ -48,7 +43,9 @@ const fetcher = async (url: string): Promise<CityDataResponse> => {
 
 export function useCityData(city: SelectedCity | null) {
   const { data, error, isLoading, mutate } = useSWR<CityDataResponse>(
-    city ? `/api/city?lat=${city.latitude}&lng=${city.longitude}&name=${encodeURIComponent(city.name)}` : null,
+    city
+      ? `/api/city?lat=${city.latitude}&lng=${city.longitude}&name=${encodeURIComponent(city.name)}${city.osmRef ? `&osm=${city.osmRef}` : ''}`
+      : null,
     fetcher,
     {
       refreshInterval: 30000, // Refresh every 30 seconds for real-time feel

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { USER_AGENT } from '@/lib/server/upstream'
 
 // Geocoding API using Nominatim (OpenStreetMap)
 export async function GET(request: NextRequest) {
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
       }),
       {
         headers: {
-          'User-Agent': 'JarvisMap/1.0',
+          'User-Agent': USER_AGENT,
         },
       }
     )

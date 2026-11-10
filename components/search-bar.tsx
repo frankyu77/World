@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, X, MapPin, Loader2 } from 'lucide-react'
 import { HoloPanel } from './holo/holo-panel'
@@ -12,6 +12,8 @@ interface SearchResult {
   name: string
   lat: string
   lon: string
+  osm_type?: string
+  osm_id?: number
   address?: {
     city?: string
     town?: string
@@ -37,19 +39,22 @@ export function SearchBar({ onCitySelect, isLoading }: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const handleSearch = useCallback(async (searchQuery: string) => {
+  const handleSearch = useCallback(async (searchQuery: string): Promise<SearchResult[]> => {
     if (searchQuery.length < 2) {
       setResults([])
-      return
+      return []
     }
     setIsSearching(true)
     try {
       const response = await fetch(`/api/geocode?q=${encodeURIComponent(searchQuery)}`)
-      const data = await response.json()
-      setResults(data.slice(0, 5))
+      const data: SearchResult[] = await response.json()
+      const top = data.slice(0, 5)
+      setResults(top)
+      return top
     } catch (error) {
       console.error('Search error:', error)
       setResults([])
+      return []
     } finally {
       setIsSearching(false)
     }
@@ -72,12 +77,23 @@ export function SearchBar({ onCitySelect, isLoading }: SearchBarProps) {
       longitude: parseFloat(result.lon),
       country: result.address?.country,
       state: result.address?.state,
+      osmRef:
+        result.osm_type && result.osm_id ? `${result.osm_type.charAt(0).toUpperCase()}${result.osm_id}` : undefined,
     })
 
     setQuery(cityName)
     setResults([])
     setIsFocused(false)
     setIsExpanded(false)
+  }
+
+  // Enter selects the top result. If the debounced search hasn't returned yet, search now.
+  const handleInputKeyDown = async (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
+    e.preventDefault()
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    const top = results[0] ?? (await handleSearch(query))[0]
+    if (top) handleSelect(top)
   }
 
   const handleClear = () => {
@@ -152,6 +168,7 @@ export function SearchBar({ onCitySelect, isLoading }: SearchBarProps) {
                 type="text"
                 value={query}
                 onChange={(e) => handleInputChange(e.target.value)}
+                onKeyDown={handleInputKeyDown}
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setTimeout(() => setIsFocused(false), 200)}
                 placeholder={PLACEHOLDER}
@@ -222,6 +239,7 @@ export function SearchBar({ onCitySelect, isLoading }: SearchBarProps) {
                     type="text"
                     value={query}
                     onChange={(e) => handleInputChange(e.target.value)}
+                    onKeyDown={handleInputKeyDown}
                     placeholder={PLACEHOLDER}
                     className="flex-1 bg-transparent font-mono text-base text-foreground outline-none placeholder:text-muted-foreground/70"
                     autoFocus
