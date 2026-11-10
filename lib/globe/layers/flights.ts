@@ -11,6 +11,22 @@ import type { PickId, VisibilityProbe } from './shared'
  * aircraft), which keeps per-frame cost flat with 10k aircraft on screen.
  */
 const MAX_EXTRAPOLATE_S = 120
+
+/**
+ * Level of detail by camera distance: full 18 px plane icons when zoomed in (< ~150 km),
+ * shrinking to ~3.6 px dots from orbit (a dense region like the US reads as a field of
+ * points, not a solid blob), and fading to half opacity far out.
+ */
+const SCALE_BY_DISTANCE: [number, number, number, number] = [1.5e5, 1.0, 1.2e7, 0.2]
+const TRANSLUCENCY_BY_DISTANCE: [number, number, number, number] = [1.5e6, 1.0, 2.2e7, 0.5]
+
+/** Altitude tint: ground grey, low (< 3 km, climb/approach) amber, mid teal, cruise cyan. */
+const ALTITUDE_COLORS = {
+  ground: '#7d8b93',
+  low: '#ffb020',
+  mid: '#14e0c8',
+  cruise: '#2ff5ff',
+} as const
 const UPDATE_SLICES = 4
 const GLYPH_PX = 32
 
@@ -77,6 +93,7 @@ export class FlightsLayer {
   private list: Aircraft[] = []
   private slice = 0
   private readonly glyph: HTMLCanvasElement
+  private readonly colors: Record<keyof typeof ALTITUDE_COLORS, InstanceType<CesiumModule['Color']>>
   private enabled = false
   snapshotAt: number | null = null
   source: FlightSource | null = null
@@ -90,6 +107,18 @@ export class FlightsLayer {
     this.collection.show = false
     scene.primitives.add(this.collection)
     this.glyph = drawGlyph()
+    this.colors = {
+      ground: Cesium.Color.fromCssColorString(ALTITUDE_COLORS.ground).withAlpha(0.7),
+      low: Cesium.Color.fromCssColorString(ALTITUDE_COLORS.low),
+      mid: Cesium.Color.fromCssColorString(ALTITUDE_COLORS.mid),
+      cruise: Cesium.Color.fromCssColorString(ALTITUDE_COLORS.cruise),
+    }
+  }
+
+  private colorFor(info: FlightInfo) {
+    if (info.onGround) return this.colors.ground
+    const alt = info.altitudeM ?? 0
+    return alt < 3000 ? this.colors.low : alt < 9000 ? this.colors.mid : this.colors.cruise
   }
 
   setEnabled(on: boolean): void {
@@ -121,7 +150,8 @@ export class FlightsLayer {
           width: 18,
           height: 18,
           alignedAxis: C.Cartesian3.UNIT_Z,
-          scaleByDistance: new C.NearFarScalar(2e5, 1.0, 1.6e7, 0.45),
+          scaleByDistance: new C.NearFarScalar(...SCALE_BY_DISTANCE),
+          translucencyByDistance: new C.NearFarScalar(...TRANSLUCENCY_BY_DISTANCE),
           id,
         })
         a = { info: state.info, billboard, p: state.p, v: state.v, t0: state.t0, cur: [...state.p] }
@@ -133,9 +163,7 @@ export class FlightsLayer {
         a.t0 = state.t0
       }
       a.billboard.rotation = -C.Math.toRadians(state.info.trackDeg ?? 0)
-      a.billboard.color = state.info.onGround
-        ? C.Color.fromCssColorString('#7d8b93').withAlpha(0.7)
-        : C.Color.fromCssColorString('#2ff5ff')
+      a.billboard.color = this.colorFor(state.info)
     }
     // Drop aircraft no longer reported in this view.
     for (const [key, a] of this.aircraft) {
@@ -210,6 +238,18 @@ export class FlightsLayer {
     let n = 0
     for (const a of this.list) if (probe.isVisible(a.cur[0], a.cur[1], a.cur[2])) n++
     return n
+  }
+
+  /**
+   * Exact dead-reckoned position at `now` for one aircraft. The billboards update in slices
+   * (15 Hz each), which is fine to look at but would make a locked camera judder; tracking
+   * uses this per frame instead.
+   */
+  positionAt(key: string, now: number): [number, number, number] | null {
+    const a = this.aircraft.get(key)
+    if (!a) return null
+    const dt = Math.min(MAX_EXTRAPOLATE_S, Math.max(0, (now - a.t0) / 1000))
+    return [a.p[0] + a.v[0] * dt, a.p[1] + a.v[1] * dt, a.p[2] + a.v[2] * dt]
   }
 
   get(key: string): { info: FlightInfo; position: [number, number, number] } | null {

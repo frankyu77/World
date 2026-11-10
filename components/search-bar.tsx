@@ -12,6 +12,8 @@ interface SearchResult {
   name: string
   lat: string
   lon: string
+  osm_type?: string
+  osm_id?: number
   address?: {
     city?: string
     town?: string
@@ -75,6 +77,8 @@ export function SearchBar({ onCitySelect, isLoading }: SearchBarProps) {
       longitude: parseFloat(result.lon),
       country: result.address?.country,
       state: result.address?.state,
+      osmRef:
+        result.osm_type && result.osm_id ? `${result.osm_type.charAt(0).toUpperCase()}${result.osm_id}` : undefined,
     })
 
     setQuery(cityName)

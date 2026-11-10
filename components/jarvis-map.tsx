@@ -15,7 +15,7 @@ import { CreditsLine } from './globe/credits-line'
 import { SensorSelector } from './globe/sensor-selector'
 import { useViewportData } from '@/hooks/use-viewport-data'
 import { CloudSun, Flame, Plane, Satellite, Waves } from 'lucide-react'
-import { buildCredits, type CreditKey } from '@/lib/globe/credits'
+import { buildCredits, isImageryCredit, type CreditKey } from '@/lib/globe/credits'
 import type { CameraState, GlobeHandle, ImageryMode, LayerId, SatelliteSet, ViewBounds } from '@/lib/globe/types'
 import type { LiveStats } from '@/lib/globe/layers/manager'
 import type { LayerToggle } from './map-controls'
@@ -31,6 +31,8 @@ export interface SelectedCity {
   longitude: number
   country?: string
   state?: string
+  /** OSM object from the search result (e.g. "R1543125"), for exact population lookup. */
+  osmRef?: string
 }
 
 const SENSOR_STORAGE_KEY = 'aegis.sensorMode'
@@ -203,6 +205,11 @@ export function JarvisMap() {
     if (layers.fires && firesAvailable) keys.push('fires')
     return buildCredits(imagery, keys)
   }, [imagery, layers, flightSource, firesAvailable])
+
+  // Full list in Cesium's "Data attribution" popup (the on-screen line truncates).
+  useEffect(() => {
+    globe?.setAttribution(credits.filter((c) => !isImageryCredit(c)))
+  }, [globe, credits])
 
   const toggles = useMemo<LayerToggle[]>(() => {
     const list: LayerToggle[] = LIVE_LAYERS.map(({ id, label, icon }) => {

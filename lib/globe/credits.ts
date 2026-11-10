@@ -22,6 +22,8 @@ const IMAGERY_CREDITS: Record<ImageryMode, CreditEntry[]> = {
 const BASE_CREDITS: CreditEntry[] = [
   { id: 'osm', label: '© OpenStreetMap contributors (ODbL)', href: 'https://www.openstreetmap.org/copyright' },
   { id: 'open-meteo', label: 'Open-Meteo (CC BY 4.0)', href: 'https://open-meteo.com' },
+  { id: 'wikipedia', label: 'Wikipedia (CC BY-SA)', href: 'https://en.wikipedia.org' },
+  { id: 'wikidata', label: 'Wikidata', href: 'https://www.wikidata.org' },
 ]
 
 /**
@@ -44,4 +46,10 @@ export function buildCredits(imagery: ImageryMode | null, activeLayers: readonly
   list.push(...BASE_CREDITS)
   for (const layer of activeLayers) list.push(...LAYER_CREDITS[layer])
   return list
+}
+
+/** Imagery providers attach their own credits to Cesium's display; don't list them twice there. */
+const IMAGERY_IDS = new Set(Object.values(IMAGERY_CREDITS).flatMap((list) => list.map((c) => c.id)))
+export function isImageryCredit(entry: CreditEntry): boolean {
+  return IMAGERY_IDS.has(entry.id)
 }

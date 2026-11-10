@@ -74,6 +74,9 @@ export class SatellitesLayer {
         color: C.Color.fromCssColorString(style.color),
         outlineColor: C.Color.BLACK.withAlpha(0.6),
         outlineWidth: style.size >= 4 ? 1 : 0,
+        // ALL ACTIVE (~16k): fade the background population from far out so it reads as a
+        // haze around the globe instead of a solid shell; curated groups stay fully opaque.
+        translucencyByDistance: s.g === 'active' ? new C.NearFarScalar(8e6, 0.95, 4e7, 0.45) : undefined,
         show: false,
         id,
       })

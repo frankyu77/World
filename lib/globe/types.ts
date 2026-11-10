@@ -59,6 +59,8 @@ export interface GlobeHandle {
   setLayerEnabled(layer: LayerId, enabled: boolean): void
   /** Curated satellites (a few hundred) or every active one (~16k). */
   setSatelliteSet(set: SatelliteSet): void
+  /** Replace the extra entries listed in Cesium's "Data attribution" popup (not shown on screen). */
+  setAttribution(credits: CreditEntry[]): void
   /** Called after every rendered frame. Returns an unsubscribe function. */
   onFrame(listener: FrameListener): () => void
 }

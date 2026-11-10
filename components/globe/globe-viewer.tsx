@@ -43,6 +43,10 @@ declare global {
 }
 
 const HIDDEN: ScreenPoint = { x: 0, y: 0, visible: false }
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
+}
 const CAMERA_EMIT_MS = 100
 const SETTLED_THROTTLE_MS = 1500
 const SETTLED_DEBOUNCE_MS = 250
@@ -208,6 +212,7 @@ export default function GlobeViewer({
         setTimeout(finish, capMs + 100)
       }
 
+      let attribution: InstanceType<typeof Cesium.Credit>[] = []
       let flightSeq = 0
       const handle: GlobeHandle = {
         flyToCity(point, onArrive) {
@@ -249,6 +254,18 @@ export default function GlobeViewer({
         },
         setSensor(mode) {
           sensors.setMode(mode)
+        },
+        setAttribution(credits) {
+          for (const c of attribution) v.creditDisplay.removeStaticCredit(c)
+          attribution = credits.map((entry) => {
+            const label = escapeHtml(entry.label)
+            const html = entry.href
+              ? `<a href="${escapeHtml(entry.href)}" target="_blank" rel="noopener noreferrer">${label}</a>`
+              : label
+            // showOnScreen=false: listed in the "Data attribution" popup only.
+            return new Cesium.Credit(html, false)
+          })
+          for (const c of attribution) v.creditDisplay.addStaticCredit(c)
         },
         setLayerEnabled(layer, enabled) {
           layers.setEnabled(layer, enabled)

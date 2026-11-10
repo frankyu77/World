@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPopulation } from '@/lib/server/population'
+import { getPois } from '@/lib/server/pois'
 
-// Comprehensive city data endpoint - weather, AQI, traffic, timezone, POIs
+// City dossier endpoint - weather, AQI, timezone, population, POIs
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const lat = searchParams.get('lat')
   const lng = searchParams.get('lng')
   const name = searchParams.get('name') || 'Unknown'
+  // Exact OSM object from the search result (e.g. "R1543125"), when the city came from search.
+  const osmParam = searchParams.get('osm')
+  const osmRef = osmParam && /^[NWR]\d+$/.test(osmParam) ? osmParam : null
 
   if (!lat || !lng) {
     return NextResponse.json(
@@ -19,25 +24,19 @@ export async function GET(request: NextRequest) {
 
   try {
     // Fetch all data in parallel
-    const [weatherData, aqiData, timezoneData, poisData] = await Promise.all([
+    const [weatherData, aqiData, timezoneData, poisData, population] = await Promise.all([
       fetchWeather(latitude, longitude),
       fetchAirQuality(latitude, longitude),
       fetchTimezone(latitude, longitude),
-      fetchPOIs(latitude, longitude),
+      getPois(latitude, longitude, name),
+      getPopulation({ osmRef, name }),
     ])
-
-    // Simulated traffic (would be replaced with real API in production)
-    const traffic = simulateTraffic()
-
-    // Get population estimate (simplified)
-    const population = await fetchPopulation(name)
 
     return NextResponse.json({
       localTime: timezoneData.localTime,
       timezone: timezoneData.timezone,
       weather: weatherData,
       airQuality: aqiData,
-      traffic,
       population,
       pois: poisData,
     })
@@ -186,100 +185,4 @@ async function fetchTimezone(lat: number, lng: number) {
       timezone: 'UTC',
     }
   }
-}
-
-async function fetchPOIs(lat: number, lng: number) {
-  try {
-    // Use Overpass API for POIs from OpenStreetMap
-    const radius = 2000 // 2km radius
-    const query = `
-      [out:json][timeout:10];
-      (
-        node["tourism"~"attraction|museum|viewpoint"](around:${radius},${lat},${lng});
-        node["amenity"~"restaurant|cafe|theatre|cinema"](around:${radius},${lat},${lng});
-        node["historic"](around:${radius},${lat},${lng});
-      );
-      out body 10;
-    `
-
-    const response = await fetch(
-      'https://overpass-api.de/api/interpreter',
-      {
-        method: 'POST',
-        body: query,
-        headers: {
-          'Content-Type': 'text/plain',
-        },
-        next: { revalidate: 3600 }, // Cache for 1 hour
-      }
-    )
-
-    if (!response.ok) throw new Error('POI fetch failed')
-
-    const data = await response.json()
-    
-    return data.elements?.slice(0, 10).map((el: { tags?: { name?: string; tourism?: string; amenity?: string; historic?: string } }) => ({
-      name: el.tags?.name || 'Unnamed',
-      type: el.tags?.tourism || el.tags?.amenity || el.tags?.historic || 'Place',
-    })) || []
-  } catch {
-    // Return some generic POIs as fallback
-    return [
-      { name: 'City Center', type: 'landmark' },
-      { name: 'Main Square', type: 'attraction' },
-    ]
-  }
-}
-
-function simulateTraffic() {
-  // Simulate traffic based on time of day
-  const hour = new Date().getHours()
-  const isRushHour = (hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)
-  const isWeekend = [0, 6].includes(new Date().getDay())
-
-  let baseLevel = 0.3
-  if (isRushHour && !isWeekend) baseLevel = 0.7
-  if (isWeekend) baseLevel = 0.2
-
-  // Add some randomness
-  const level = Math.min(1, Math.max(0, baseLevel + (Math.random() - 0.5) * 0.3))
-  const delay = Math.round(level * 15) // 0-15 minutes delay
-
-  return {
-    level,
-    delay,
-  }
-}
-
-async function fetchPopulation(cityName: string) {
-  // Population estimates for major cities (simplified)
-  const populations: Record<string, number> = {
-    'new york': 8336817,
-    'london': 8982000,
-    'tokyo': 13960000,
-    'paris': 2161000,
-    'sydney': 5312000,
-    'dubai': 3331000,
-    'singapore': 5454000,
-    'shanghai': 24870000,
-    'mumbai': 12478447,
-    'berlin': 3645000,
-    'moscow': 12506468,
-    'rio de janeiro': 6748000,
-    'los angeles': 3979576,
-    'toronto': 2930000,
-    'seoul': 9733509,
-    'beijing': 21540000,
-    'hong kong': 7500700,
-    'chicago': 2693976,
-    'san francisco': 873965,
-    'barcelona': 1620343,
-    'amsterdam': 872680,
-    'rome': 2873000,
-    'miami': 442241,
-    'boston': 675647,
-  }
-
-  const normalized = cityName.toLowerCase()
-  return populations[normalized] || null
 }
