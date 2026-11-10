@@ -1,4 +1,6 @@
 import type { SensorMode } from './sensors/modes'
+import type { LayerId } from './layers/shared'
+import type { SatelliteSet } from '../feeds/types'
 
 /** Geographic bounds of the visible globe area, in degrees. `west > east` means the view crosses the antimeridian. */
 export interface ViewBounds {
@@ -39,7 +41,7 @@ export interface ScreenPoint {
 
 export type FrameListener = () => void
 
-export type { SensorMode }
+export type { SensorMode, LayerId, SatelliteSet }
 
 /** Imperative API the globe exposes to the orchestrator via ref. */
 export interface GlobeHandle {
@@ -53,6 +55,10 @@ export interface GlobeHandle {
   project(point: GeoPoint, heightMeters?: number): ScreenPoint
   /** Switch the post-process sensor grade (AEGIS, NVG, FLIR, CRT, NOIR, RAW). */
   setSensor(mode: SensorMode): void
+  /** Show/hide a live data layer; enabling starts its polling. */
+  setLayerEnabled(layer: LayerId, enabled: boolean): void
+  /** Curated satellites (a few hundred) or every active one (~16k). */
+  setSatelliteSet(set: SatelliteSet): void
   /** Called after every rendered frame. Returns an unsubscribe function. */
   onFrame(listener: FrameListener): () => void
 }

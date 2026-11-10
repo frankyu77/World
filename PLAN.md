@@ -383,6 +383,31 @@ The numbers go into each step's commit message and summary.
   atmosphere all kept the dots; hiding the shell removed them. The shell now fades out between 800 and 1,500 km
   and is hidden above that, so the horizon sky remains near the ground.
 
+## 9d. Step 3: what changed from this plan
+
+- **satellite.js 6.0.2, not 7.1.0.** 7.x lazily imports a pthreads WebAssembly build whose
+  self-spawning worker made Turbopack's production build hang (bisected: stubbing the worker
+  built in 1.6 s; the worker without satellite.js built; with it, it hung). The plain-JS
+  propagator is all this app uses; 6.0.2 has the same API.
+- **ALL ACTIVE is about 16k satellites, not 10k.** CelesTrak's `active` group is now 15,883.
+  The worker propagates all of them in about 10 ms per 0.5 s sample, and the page holds 60 fps.
+- **CelesTrak disk cache.** CelesTrak 403s repeat downloads of a group within about 2 h per
+  IP, and dev/prod/restarted processes each had their own memory cache. Groups are now
+  persisted to `.next/cache/aegis/`, shared across processes, and served stale during a cooldown.
+- **Fetch area with hysteresis.** The idle-rotating globe changed the bbox every 1.5 s and
+  refetched flights each time (128 requests in about 70 s). Requests now cover a padded,
+  grid-snapped area and refetch only when the view leaves it (15 requests in 83 s). Regional
+  views pad only as far as stays within `REGIONAL_RADIUS_KM`, shared with the route, so they
+  keep the fresh adsb.lol source.
+- **Gzip in the route helper.** `next start` did not compress route-handler responses: the
+  global flights feed dropped from 690 KB to 280 KB.
+- **HUD.** INTELLIGENCE gets a DATA AGE row (amber > 60 s, red > 5 min, plus the source).
+  Counts of 10k and over use compact form (16.2K). The right-column panels widen 176 → 196 px
+  to match LAYERS.
+- **Known residual.** City flights still occasionally stall at the ~125 km Cesium
+  globe-shader compile band. The size of the stall varies a lot (40-580 ms observed; most
+  flights ≤ 57 ms). Flight ingest costs 14 ms per 30 s global poll and 39 ms on the cold load.
+
 ## 10. Risks and open questions
 
 1. **Boot sequence (decided).** It stays opaque; the globe rotates underneath and is revealed on fade.

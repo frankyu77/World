@@ -17,6 +17,8 @@ interface HudOverlayProps {
   tracking: number
   /** The city panel occupies the right edge: slide the right-column panels out of its way. */
   rightColumnHidden?: boolean
+  /** Newest flight snapshot (null when the flights layer is off or hasn't loaded). */
+  flightFeed?: { snapshotAt: number; source: 'adsb.lol' | 'opensky' } | null
 }
 
 function formatTime(date: Date) {
@@ -41,7 +43,7 @@ function zoomTier(zoom: number) {
  *   bottom-center → zoom / global view
  *   bottom-right → signal strength
  */
-export function HudOverlay({ zoom, latitude, longitude, isLoading, activeNodes, tracking, rightColumnHidden = false }: HudOverlayProps) {
+export function HudOverlay({ zoom, latitude, longitude, isLoading, activeNodes, tracking, rightColumnHidden = false, flightFeed = null }: HudOverlayProps) {
   // Same easing as the panels' own fadeRight entrance.
   const rightColumn = {
     animate: rightColumnHidden ? { x: 48, opacity: 0 } : { x: 0, opacity: 1 },
@@ -91,7 +93,7 @@ export function HudOverlay({ zoom, latitude, longitude, isLoading, activeNodes, 
 
       {/* ── TOP-RIGHT · Intelligence metrics ───────────────────────── */}
       <motion.div {...rightColumn} className="fixed right-6 top-6 z-20 pointer-events-none hidden md:block">
-        <HoloPanel {...motionPresets.fadeRight} className="w-[176px] p-4">
+        <HoloPanel {...motionPresets.fadeRight} className="w-[196px] p-4">
           <div className="flex items-center gap-2">
             <Crosshair className="h-3.5 w-3.5 text-jarvis-cyan" />
             <span className="holo-label text-[10px]">INTELLIGENCE</span>
@@ -99,6 +101,7 @@ export function HudOverlay({ zoom, latitude, longitude, isLoading, activeNodes, 
           <div className="mt-3 space-y-3">
             <Metric label="Active Nodes" value={activeNodes} />
             <Metric label="Tracking" value={tracking} sub="targets" />
+            <DataAge feed={flightFeed} now={now} />
           </div>
         </HoloPanel>
       </motion.div>
@@ -155,16 +158,38 @@ export function HudOverlay({ zoom, latitude, longitude, isLoading, activeNodes, 
   )
 }
 
+/** Five-digit counts would overflow the panel: 16383 -> 16.4K. */
+function formatCount(n: number): string {
+  if (n < 10_000) return String(n)
+  return `${(n / 1000).toFixed(n < 100_000 ? 1 : 0)}K`
+}
+
 function Metric({ label, value, sub }: { label: string; value: number; sub?: string }) {
   return (
     <div className="flex items-end justify-between">
-      <span className="holo-label text-[10px]">{label}</span>
+      <span className="holo-label whitespace-nowrap text-[10px]">{label}</span>
       <span className="flex items-baseline gap-1">
         <span className="holo-value text-xl font-semibold leading-none flex items-center gap-1.5">
           <Activity className="h-3 w-3 opacity-70" />
-          {value}
+          {formatCount(value)}
         </span>
         {sub && <span className="holo-label text-[8px] opacity-60">{sub}</span>}
+      </span>
+    </div>
+  )
+}
+
+/** Age of the newest flight snapshot: amber past 60 s, red past 5 min, so stale data is obvious. */
+function DataAge({ feed, now }: { feed: HudOverlayProps['flightFeed']; now: Date | null }) {
+  const ageS = feed && now ? Math.max(0, Math.round((now.getTime() - feed.snapshotAt) / 1000)) : null
+  const tone = ageS === null ? 'text-muted-foreground' : ageS > 300 ? 'text-jarvis-red' : ageS > 60 ? 'text-jarvis-amber' : 'text-jarvis-cyan'
+  const text = ageS === null ? '--' : ageS < 120 ? `${ageS}s` : `${Math.floor(ageS / 60)}m ${String(ageS % 60).padStart(2, '0')}s`
+  return (
+    <div className="flex items-end justify-between" title="Age of the newest flight data in view">
+      <span className="holo-label text-[10px]">Data Age</span>
+      <span className="flex items-baseline gap-1">
+        <span className={`font-mono text-sm font-semibold tabular-nums leading-none ${tone}`}>{text}</span>
+        {feed && <span className="holo-label text-[8px] opacity-60">{feed.source === 'opensky' ? 'OSKY' : 'ADSB'}</span>}
       </span>
     </div>
   )

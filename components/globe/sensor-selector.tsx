@@ -24,9 +24,9 @@ export function SensorSelector({ mode, onChange, hidden = false }: SensorSelecto
     <motion.div
       animate={hidden ? { x: 48, opacity: 0 } : { x: 0, opacity: 1 }}
       transition={motionPresets.fadeRight.transition}
-      className={cn('fixed right-6 top-[152px] z-20 hidden md:block', hidden && 'pointer-events-none')}
+      className={cn('fixed right-6 top-[180px] z-20 hidden md:block', hidden && 'pointer-events-none')}
     >
-      <HoloPanel {...motionPresets.fadeRight} className="w-[176px] p-4">
+      <HoloPanel {...motionPresets.fadeRight} className="w-[196px] p-4">
         <div className="flex items-center gap-2">
           <ScanEye className="h-3.5 w-3.5 text-jarvis-cyan" />
           <span className="holo-label text-[10px]">SENSOR</span>

@@ -131,7 +131,7 @@ export function CityInfoPanel({ city, isOpen, onClose }: CityInfoPanelProps) {
                       </div>
                     </DataSection>
 
-                    <DataSection title="TRAFFIC STATUS" icon={Car}>
+                    <DataSection title="TRAFFIC STATUS · SIMULATED" icon={Car}>
                       <div className="flex items-center gap-3">
                         <span
                           className="h-3 w-3 animate-pulse rounded-full"

@@ -9,6 +9,7 @@ import { nightProfileFor } from '@/lib/globe/sensors/modes'
 import { warmUpShaders } from '@/lib/globe/warmup'
 import { prefetchDestinationTiles } from '@/lib/globe/prefetch'
 import { createSensorController } from '@/lib/globe/sensors/controller'
+import { LayerManager, type LiveStats } from '@/lib/globe/layers/manager'
 import { flyHome, flyLevel, flyToCity, readCameraState, readViewBounds } from '@/lib/globe/camera'
 import type { CameraState, FrameListener, GlobeHandle, ImageryMode, ScreenPoint, ViewBounds } from '@/lib/globe/types'
 
@@ -23,12 +24,16 @@ export interface GlobeViewerProps {
   onBackgroundClick: () => void
   /** True while the boot overlay hides the globe; used to compile shaders invisibly. */
   concealed: boolean
+  /** Live-layer counts, data age and availability, ~2 Hz. */
+  onLiveStats: (stats: LiveStats) => void
 }
 
 interface AegisPerfProbe {
   frameTimes: number[]
   cpuMs: number[]
   viewer: Viewer
+  liveStats?: LiveStats
+  layers?: LayerManager
 }
 
 declare global {
@@ -55,12 +60,13 @@ export default function GlobeViewer({
   onImageryReady,
   onBackgroundClick,
   concealed,
+  onLiveStats,
 }: GlobeViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const creditRef = useRef<HTMLDivElement>(null)
   // Latest callbacks, so the Cesium setup effect runs once.
-  const callbacks = useRef({ onReady, onCameraChange, onViewSettled, onImageryReady, onBackgroundClick })
-  callbacks.current = { onReady, onCameraChange, onViewSettled, onImageryReady, onBackgroundClick }
+  const callbacks = useRef({ onReady, onCameraChange, onViewSettled, onImageryReady, onBackgroundClick, onLiveStats })
+  callbacks.current = { onReady, onCameraChange, onViewSettled, onImageryReady, onBackgroundClick, onLiveStats }
   const concealedRef = useRef(concealed)
   concealedRef.current = concealed
   // Cancels a running shader warm-up (restoring the start view); set while one runs.
@@ -95,6 +101,12 @@ export default function GlobeViewer({
         setFlatLighting(scene, profile === 'flat')
         if (imageryLayers) applyNightProfile(imageryLayers, profile)
       })
+      const layers = new LayerManager(Cesium, scene, (stats) => {
+        if (window.__aegisPerf) window.__aegisPerf.liveStats = stats
+        callbacks.current.onLiveStats(stats)
+      })
+      teardown.push(() => layers.destroy())
+      teardown.push(scene.preUpdate.addEventListener(() => layers.frame(Date.now())))
       updateSkyAtmosphere(scene, camera.positionCartographic.height)
       teardown.push(scene.preUpdate.addEventListener(() => updateSkyAtmosphere(scene, camera.positionCartographic.height)))
       teardown.push(() => sensors.destroy())
@@ -118,7 +130,9 @@ export default function GlobeViewer({
         lastSettled = performance.now()
         const state = readCameraState(Cesium, scene)
         callbacks.current.onCameraChange(state)
-        callbacks.current.onViewSettled(readViewBounds(Cesium, scene), state)
+        const bounds = readViewBounds(Cesium, scene)
+        layers.setView(bounds)
+        callbacks.current.onViewSettled(bounds, state)
       }
       teardown.push(camera.moveEnd.addEventListener(emitSettled))
       // moveEnd alone isn't reliable: a camera that never stops (idle rotation, a long drag)
@@ -147,7 +161,7 @@ export default function GlobeViewer({
       // time per frame (preRender → postRender, excludes GPU). Always on in dev; in production
       // only with ?perf in the URL.
       if (process.env.NODE_ENV !== 'production' || new URLSearchParams(window.location.search).has('perf')) {
-        const perf: AegisPerfProbe = { frameTimes: [], cpuMs: [], viewer: v }
+        const perf: AegisPerfProbe = { frameTimes: [], cpuMs: [], viewer: v, layers }
         window.__aegisPerf = perf
         let frameStart = 0
         teardown.push(
@@ -235,6 +249,12 @@ export default function GlobeViewer({
         },
         setSensor(mode) {
           sensors.setMode(mode)
+        },
+        setLayerEnabled(layer, enabled) {
+          layers.setEnabled(layer, enabled)
+        },
+        setSatelliteSet(set) {
+          layers.setSatelliteSet(set)
         },
         onFrame(listener) {
           frameListeners.add(listener)

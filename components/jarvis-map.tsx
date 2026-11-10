@@ -14,8 +14,11 @@ import { ScreenAnchors, type ScreenAnchorItem } from './globe/screen-anchors'
 import { CreditsLine } from './globe/credits-line'
 import { SensorSelector } from './globe/sensor-selector'
 import { useViewportData } from '@/hooks/use-viewport-data'
-import { buildCredits } from '@/lib/globe/credits'
-import type { CameraState, GlobeHandle, ImageryMode, ViewBounds } from '@/lib/globe/types'
+import { CloudSun, Flame, Plane, Satellite, Waves } from 'lucide-react'
+import { buildCredits, type CreditKey } from '@/lib/globe/credits'
+import type { CameraState, GlobeHandle, ImageryMode, LayerId, SatelliteSet, ViewBounds } from '@/lib/globe/types'
+import type { LiveStats } from '@/lib/globe/layers/manager'
+import type { LayerToggle } from './map-controls'
 import { DEFAULT_SENSOR_MODE, isSensorMode, sensorModeForKey, type SensorMode } from '@/lib/globe/sensors/modes'
 
 // Cesium touches window/WebGL at import time: client-only, never server-rendered.
@@ -38,6 +41,18 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT'
 }
 
+const LIVE_LAYERS: ReadonlyArray<{ id: LayerId; label: string; icon: LayerToggle['icon'] }> = [
+  { id: 'flights', label: 'Flights', icon: Plane },
+  { id: 'satellites', label: 'Satellites', icon: Satellite },
+  { id: 'earthquakes', label: 'Quakes', icon: Waves },
+  { id: 'fires', label: 'Fires', icon: Flame },
+]
+
+const SATELLITE_SETS: Array<{ value: SatelliteSet; label: string }> = [
+  { value: 'curated', label: 'CURATED' },
+  { value: 'active', label: 'ALL ACTIVE' },
+]
+
 const INITIAL_CAMERA: CameraState = { latitude: 20, longitude: 0, height: 20_000_000, zoom: 2.8 }
 
 export function JarvisMap() {
@@ -52,6 +67,19 @@ export function JarvisMap() {
   const [isLoading, setIsLoading] = useState(false)
   const [isBooted, setIsBooted] = useState(false)
   const [sensor, setSensor] = useState<SensorMode>(DEFAULT_SENSOR_MODE)
+  const [layers, setLayers] = useState<Record<LayerId, boolean>>({ flights: true, satellites: true, earthquakes: true, fires: true })
+  const [satelliteSet, setSatelliteSet] = useState<SatelliteSet>('curated')
+  const [live, setLive] = useState<LiveStats | null>(null)
+
+  // Push layer state to the globe (enabling a layer starts its polling).
+  useEffect(() => {
+    if (!globe) return
+    for (const { id } of LIVE_LAYERS) globe.setLayerEnabled(id, layers[id])
+  }, [globe, layers])
+
+  useEffect(() => {
+    globe?.setSatelliteSet(satelliteSet)
+  }, [globe, satelliteSet])
 
   // Restore the last sensor mode after mount (localStorage isn't available during SSR, and
   // reading it in the initial state would mismatch hydration). Storage can throw: ignore.
@@ -164,7 +192,47 @@ export function JarvisMap() {
     return items
   }, [showWeather, cities, selectedCity, handleCitySelect])
 
-  const credits = useMemo(() => buildCredits(imagery, []), [imagery])
+  const firesAvailable = live?.firesAvailable ?? null
+  const flightSource = live?.flights?.source ?? null
+  // Credit exactly what is on screen: the flight source that served this view, plus each live layer.
+  const credits = useMemo(() => {
+    const keys: CreditKey[] = []
+    if (layers.flights && flightSource) keys.push(flightSource === 'opensky' ? 'flights:opensky' : 'flights:adsb.lol')
+    if (layers.satellites) keys.push('satellites')
+    if (layers.earthquakes) keys.push('earthquakes')
+    if (layers.fires && firesAvailable) keys.push('fires')
+    return buildCredits(imagery, keys)
+  }, [imagery, layers, flightSource, firesAvailable])
+
+  const toggles = useMemo<LayerToggle[]>(() => {
+    const list: LayerToggle[] = LIVE_LAYERS.map(({ id, label, icon }) => {
+      const noKey = id === 'fires' && firesAvailable === false
+      return {
+        id,
+        label,
+        icon,
+        active: layers[id] && !noKey,
+        disabled: noKey,
+        tag: noKey ? 'NO KEY' : undefined,
+        count: live?.counts[id],
+      }
+    })
+    list.push({ id: 'weather', label: 'Weather', icon: CloudSun, active: showWeather, count: showWeather ? cities.length : undefined })
+    return list
+  }, [layers, firesAvailable, live, showWeather, cities.length])
+
+  const handleToggle = useCallback((id: string) => {
+    if (id === 'weather') {
+      setShowWeather((v) => !v)
+      return
+    }
+    setLayers((prev) => {
+      const key = id as LayerId
+      return key in prev ? { ...prev, [key]: !prev[key] } : prev
+    })
+  }, [])
+
+  const weatherNodes = showWeather ? cities.length : 0
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-jarvis-bg">
@@ -178,6 +246,7 @@ export function JarvisMap() {
         onImageryReady={setImagery}
         onBackgroundClick={handleBackgroundClick}
         concealed={!isBooted}
+        onLiveStats={setLive}
       />
 
       <ScreenAnchors globe={globe} items={anchors} />
@@ -190,9 +259,10 @@ export function JarvisMap() {
         latitude={camera.latitude}
         longitude={camera.longitude}
         isLoading={isLoading || isLoadingCities}
-        activeNodes={showWeather ? cities.length : 0}
-        tracking={0}
+        activeNodes={(live?.activeNodes ?? 0) + weatherNodes}
+        tracking={live?.tracking ?? 0}
         rightColumnHidden={isPanelOpen}
+        flightFeed={live?.flights ?? null}
       />
 
       <SensorSelector mode={sensor} onChange={setSensor} hidden={isPanelOpen} />
@@ -200,8 +270,14 @@ export function JarvisMap() {
       <SearchBar onCitySelect={handleCitySelect} isLoading={isLoading} />
 
       <MapControls
-        showWeather={showWeather}
-        onToggleWeather={() => setShowWeather((v) => !v)}
+        toggles={toggles}
+        onToggle={handleToggle}
+        sub={{
+          forId: 'satellites',
+          value: satelliteSet,
+          options: SATELLITE_SETS,
+          onChange: (v) => setSatelliteSet(v === 'active' ? 'active' : 'curated'),
+        }}
         onResetView={handleResetView}
       />
 
