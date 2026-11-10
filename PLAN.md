@@ -408,6 +408,29 @@ The numbers go into each step's commit message and summary.
   globe-shader compile band. The size of the stall varies a lot (40-580 ms observed; most
   flights ≤ 57 ms). Flight ingest costs 14 ms per 30 s global poll and 39 ms on the cold load.
 
+## 9e. Step 4: what changed from this plan
+
+- **Camera lock.** `lookAtTransform(frame)` *without* an offset keeps the camera's world position
+  (it only re-expresses it in the new frame), so the camera stayed put while the target flew off:
+  the reticle drifted ~390 px in 10 s. Now the tracker anchors once after the lock flight, then
+  each frame carries the camera's local offset into the target's new frame
+  (`lookAtTransform(newFrame, offset)`). The target stays centred (0 px measured after 10 s and
+  after an orbit drag) and the user can still orbit and zoom around it.
+- **Per-frame aircraft position.** Billboards update in quarter-fleet slices (15 Hz each), which
+  would make a locked camera judder; tracking uses an exact per-frame dead-reckoned position
+  (`FlightsLayer.positionAt`).
+- **Tracked aircraft keep fresh data.** Orbiting or zooming out to a wide view switched the
+  flights feed to the older OpenSky snapshot, which jumped the tracked position and kinked the
+  trail. While an aircraft is locked, the flights feed follows the target (a regional box around
+  it, so adsb.lol at 10 s) instead of the view. Measured: still ADSB.LOL, 5 s old, after zooming
+  out to 27,000 km.
+- **Trails.** Aircraft trails start at lock-on (the keyless feeds give no past track) and keep
+  3 min at 2 Hz. Satellites show the past 10 min of orbit (solid, fading) and the next 10 min
+  (dashed), from SGP4 on the main thread for that one satellite only.
+- **Co-located satellites.** A plain pick on the ISS returned Progress MS-34, a docked vehicle
+  drawn on top. The click now drill-picks and prefers the lowest NORAD id (the parent station).
+- **Quakes and fires.** Inspect only: a card, with no camera lock or reticle.
+
 ## 10. Risks and open questions
 
 1. **Boot sequence (decided).** It stays opaque; the globe rotates underneath and is revealed on fade.

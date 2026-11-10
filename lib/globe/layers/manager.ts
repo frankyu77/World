@@ -80,6 +80,13 @@ export class LayerManager {
   private bounds: Bbox | null = null
   private viewRadiusKm = Number.POSITIVE_INFINITY
   private satSet: SatelliteSet = 'curated'
+  /**
+   * While an aircraft is tracked, flights follow it instead of the view: a regional box around
+   * its current position, so it stays on fresh adsb.lol data even when the user orbits out to a
+   * wide view (which would otherwise switch to the older OpenSky snapshot and make the tracked
+   * position jump).
+   */
+  private flightFocus: (() => { lat: number; lon: number } | null) | null = null
   private firesAvailable: boolean | null = null
   private readonly probe: VisibilityProbe
   private readonly statsTimer: ReturnType<typeof setInterval>
@@ -99,11 +106,24 @@ export class LayerManager {
     this.pollers = {
       flights: createPoller<FlightsResponse>({
         url: () => {
+          const focus = this.flightFocus?.()
+          if (focus) {
+            const dLat = 1.5
+            const dLon = Math.min(10, 1.5 / Math.max(0.2, Math.cos((focus.lat * Math.PI) / 180)))
+            const box: Bbox = {
+              west: Math.max(-180, focus.lon - dLon),
+              east: Math.min(180, focus.lon + dLon),
+              south: Math.max(-90, focus.lat - dLat),
+              north: Math.min(90, focus.lat + dLat),
+            }
+            return `/api/feeds/flights?bbox=${formatBbox(box)}`
+          }
           const b = bboxParam()
           return b ? `/api/feeds/flights?bbox=${b}` : null
         },
-        // Regional views are served by adsb.lol (10 s data); wide views by the shared OpenSky snapshot.
-        intervalMs: () => (this.viewRadiusKm <= REGIONAL_RADIUS_KM ? 10_000 : 30_000),
+        // Regional views (and a tracked aircraft) are served by adsb.lol (10 s data); wide views
+        // by the shared OpenSky snapshot.
+        intervalMs: () => (this.flightFocus || this.viewRadiusKm <= REGIONAL_RADIUS_KM ? 10_000 : 30_000),
         onData: (d) => this.flights.ingest(d),
       }),
       satellites: createPoller<SatellitesResponse>({
@@ -168,12 +188,25 @@ export class LayerManager {
     }
   }
 
+  /** Follow a tracked aircraft with the flights feed (null to go back to following the view). */
+  setFlightFocus(focus: (() => { lat: number; lon: number } | null) | null): void {
+    this.flightFocus = focus
+    this.pollers.flights.refresh()
+  }
+
   /**
    * The view settled. Refetch only when it leaves the area last requested, or crosses between
    * regional and wide (which changes the flight source); otherwise the pollers' intervals do.
    */
   setView(view: Bbox | null): void {
     if (!view) return
+    if (this.flightFocus) {
+      // Flights follow the tracked aircraft; only the other bbox layers follow the view.
+      this.bounds = fetchArea(view)
+      this.pollers.earthquakes.refresh()
+      this.pollers.fires.refresh()
+      return
+    }
     const radius = bboxRadiusKm(view)
     const wasRegional = this.viewRadiusKm <= REGIONAL_RADIUS_KM
     this.viewRadiusKm = radius

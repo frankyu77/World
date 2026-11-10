@@ -10,6 +10,8 @@ import { warmUpShaders } from '@/lib/globe/warmup'
 import { prefetchDestinationTiles } from '@/lib/globe/prefetch'
 import { createSensorController } from '@/lib/globe/sensors/controller'
 import { LayerManager, type LiveStats } from '@/lib/globe/layers/manager'
+import { isPickId, type PickId } from '@/lib/globe/layers/shared'
+import { createTracker, type TargetInfo } from '@/lib/globe/tracking'
 import { flyHome, flyLevel, flyToCity, readCameraState, readViewBounds } from '@/lib/globe/camera'
 import type { CameraState, FrameListener, GlobeHandle, ImageryMode, ScreenPoint, ViewBounds } from '@/lib/globe/types'
 
@@ -26,6 +28,8 @@ export interface GlobeViewerProps {
   concealed: boolean
   /** Live-layer counts, data age and availability, ~2 Hz. */
   onLiveStats: (stats: LiveStats) => void
+  /** Metadata for the selected object (4 Hz while tracking), or null when released. */
+  onTargetInfo: (info: TargetInfo | null) => void
 }
 
 interface AegisPerfProbe {
@@ -65,12 +69,13 @@ export default function GlobeViewer({
   onBackgroundClick,
   concealed,
   onLiveStats,
+  onTargetInfo,
 }: GlobeViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const creditRef = useRef<HTMLDivElement>(null)
   // Latest callbacks, so the Cesium setup effect runs once.
-  const callbacks = useRef({ onReady, onCameraChange, onViewSettled, onImageryReady, onBackgroundClick, onLiveStats })
-  callbacks.current = { onReady, onCameraChange, onViewSettled, onImageryReady, onBackgroundClick, onLiveStats }
+  const callbacks = useRef({ onReady, onCameraChange, onViewSettled, onImageryReady, onBackgroundClick, onLiveStats, onTargetInfo })
+  callbacks.current = { onReady, onCameraChange, onViewSettled, onImageryReady, onBackgroundClick, onLiveStats, onTargetInfo }
   const concealedRef = useRef(concealed)
   concealedRef.current = concealed
   // Cancels a running shader warm-up (restoring the start view); set while one runs.
@@ -111,6 +116,12 @@ export default function GlobeViewer({
       })
       teardown.push(() => layers.destroy())
       teardown.push(scene.preUpdate.addEventListener(() => layers.frame(Date.now())))
+      const tracker = createTracker(Cesium, v, layers, {
+        onInfo: (info) => callbacks.current.onTargetInfo(info),
+        // While locked, idle rotation must not fight the camera lock.
+        onLockChange: (locked) => rotation.setFlightActive(locked),
+      })
+      teardown.push(() => tracker.destroy())
       updateSkyAtmosphere(scene, camera.positionCartographic.height)
       teardown.push(scene.preUpdate.addEventListener(() => updateSkyAtmosphere(scene, camera.positionCartographic.height)))
       teardown.push(() => sensors.destroy())
@@ -216,6 +227,7 @@ export default function GlobeViewer({
       let flightSeq = 0
       const handle: GlobeHandle = {
         flyToCity(point, onArrive) {
+          tracker.release()
           const seq = ++flightSeq
           rotation.setFlightActive(true)
           prefetch?.abort()
@@ -230,6 +242,7 @@ export default function GlobeViewer({
           })
         },
         resetView() {
+          tracker.release()
           rotation.setFlightActive(true)
           flyHome(Cesium, camera, readCameraState(Cesium, scene).longitude, () => {
             rotation.setFlightActive(false)
@@ -237,11 +250,25 @@ export default function GlobeViewer({
           })
         },
         levelView() {
+          tracker.release()
           rotation.setFlightActive(true)
           flyLevel(Cesium, scene, () => {
             rotation.setFlightActive(false)
             emitSettled()
           })
+        },
+        releaseTarget() {
+          tracker.release()
+        },
+        targetScreen() {
+          const p = tracker.targetPosition()
+          if (!p) return HIDDEN
+          const world = Cesium.Cartesian3.fromElements(p[0], p[1], p[2], scratch)
+          occluder.cameraPosition = camera.positionWC
+          if (!occluder.isPointVisible(world)) return HIDDEN
+          const win = Cesium.SceneTransforms.worldToWindowCoordinates(scene, world, scratchWindow)
+          if (!win) return HIDDEN
+          return { x: win.x, y: win.y, visible: true }
         },
         project(point, heightMeters = 0) {
           const world = Cesium.Cartesian3.fromDegrees(point.longitude, point.latitude, heightMeters, undefined, scratch)
@@ -282,7 +309,23 @@ export default function GlobeViewer({
       // Clicks on empty globe (no picked object) dismiss the city panel, like the old map.
       const clicks = new Cesium.ScreenSpaceEventHandler(scene.canvas)
       clicks.setInputAction((event: { position: InstanceType<typeof Cesium.Cartesian2> }) => {
-        if (!scene.pick(event.position)) callbacks.current.onBackgroundClick()
+        const picked: unknown = scene.pick(event.position)
+        const first: unknown = typeof picked === 'object' && picked !== null && 'id' in picked ? picked.id : null
+        let id: PickId | null = isPickId(first) ? first : null
+        // Co-located satellites (a station and its docked vehicles) share a position; whichever
+        // draws on top wins a plain pick. Prefer the oldest catalog entry (lowest NORAD id),
+        // which is the parent station (ISS 25544, not the Progress ship docked to it).
+        if (id && id.layer === 'satellites') {
+          const stack: unknown[] = scene.drillPick(event.position, 8)
+          for (const hit of stack) {
+            const other = typeof hit === 'object' && hit !== null && 'id' in hit ? hit.id : null
+            if (isPickId(other) && other.layer === 'satellites' && Number(other.key) < Number(id.key)) id = other
+          }
+        }
+        if (id && tracker.select(id)) return
+        // Empty space: release any target and dismiss the city panel, like the old map.
+        tracker.release()
+        if (!picked) callbacks.current.onBackgroundClick()
       }, Cesium.ScreenSpaceEventType.LEFT_CLICK)
       teardown.push(() => clicks.destroy())
 

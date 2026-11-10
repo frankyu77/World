@@ -61,6 +61,10 @@ export interface GlobeHandle {
   setSatelliteSet(set: SatelliteSet): void
   /** Replace the extra entries listed in Cesium's "Data attribution" popup (not shown on screen). */
   setAttribution(credits: CreditEntry[]): void
+  /** Stop tracking / inspecting the current target and release the camera. */
+  releaseTarget(): void
+  /** Screen position of the tracked target this frame (for the reticle). */
+  targetScreen(): ScreenPoint
   /** Called after every rendered frame. Returns an unsubscribe function. */
   onFrame(listener: FrameListener): () => void
 }

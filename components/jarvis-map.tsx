@@ -13,6 +13,9 @@ import { MapProjectionFX, AtmosphereFX } from './holographic-overlays'
 import { ScreenAnchors, type ScreenAnchorItem } from './globe/screen-anchors'
 import { CreditsLine } from './globe/credits-line'
 import { SensorSelector } from './globe/sensor-selector'
+import { TargetCard } from './globe/target-card'
+import { TargetReticle } from './globe/target-reticle'
+import type { TargetInfo } from '@/lib/globe/tracking'
 import { useViewportData } from '@/hooks/use-viewport-data'
 import { CloudSun, Flame, Plane, Satellite, Waves } from 'lucide-react'
 import { buildCredits, isImageryCredit, type CreditKey } from '@/lib/globe/credits'
@@ -72,6 +75,21 @@ export function JarvisMap() {
   const [layers, setLayers] = useState<Record<LayerId, boolean>>({ flights: true, satellites: true, earthquakes: true, fires: true })
   const [satelliteSet, setSatelliteSet] = useState<SatelliteSet>('curated')
   const [live, setLive] = useState<LiveStats | null>(null)
+  const [target, setTarget] = useState<TargetInfo | null>(null)
+
+  const releaseTarget = useCallback(() => {
+    globe?.releaseTarget()
+    setTarget(null)
+  }, [globe])
+
+  // Esc releases the tracked target (unless the user is typing in a field).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isTypingTarget(e.target)) releaseTarget()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [releaseTarget])
 
   // Push layer state to the globe (enabling a layer starts its polling).
   useEffect(() => {
@@ -254,9 +272,16 @@ export function JarvisMap() {
         onBackgroundClick={handleBackgroundClick}
         concealed={!isBooted}
         onLiveStats={setLive}
+        onTargetInfo={setTarget}
       />
 
       <ScreenAnchors globe={globe} items={anchors} />
+
+      <TargetReticle
+        globe={globe}
+        active={target?.kind === 'aircraft' || target?.kind === 'satellite'}
+        rangeKm={target && (target.kind === 'aircraft' || target.kind === 'satellite') ? target.rangeKm : null}
+      />
 
       {/* Holographic projection effects cast over the globe */}
       <MapProjectionFX />
@@ -289,6 +314,8 @@ export function JarvisMap() {
       />
 
       <CityInfoPanel city={selectedCity} isOpen={isPanelOpen} onClose={handleClosePanel} />
+
+      <TargetCard info={target} onClose={releaseTarget} />
 
       <CreditsLine credits={credits} />
 
